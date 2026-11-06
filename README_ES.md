@@ -64,9 +64,10 @@ Los menús del plugin están en inglés, así que te pongo entre comillas cómo 
 - "Saved searches": las búsquedas que has guardado.
 - "Recent": tus últimas búsquedas.
 - "Bookmarks": lo que quieres leer más adelante.
-- "Library": los cómics que has decidido quedarte.
+- "Library": los cómics que has decidido quedarte, agrupados por título.
 - "History": lo último que has leído.
 - "Settings": los ajustes.
+- "Queue": cuando tienes descargas esperando, sale un botón "Queue" arriba a la izquierda (mira [Cola de descargas](#cola-de-descargas)).
 
 Arriba a la izquierda de cada pantalla hay una flecha para volver, y una X para cerrar el plugin. Cuando cierras un cómic vuelves justo donde estabas.
 
@@ -85,9 +86,54 @@ Arriba a la izquierda de cada pantalla hay una flecha para volver, y una X para 
 
 Si mantienes el dedo sobre casi cualquier cosa te salen más opciones (guardar, quitar, borrar).
 
+### Cola de descargas
+
+¿No quieres quedarte mirando cómo se baja todo? Pon las descargas en cola y que vayan solas.
+
+- Mantén el dedo sobre un resultado, o abre los detalles de un título, y dale a "Add to download queue". En la lista de capítulos, "Add all chapters to the download queue" mete el título entero, y si mantienes el dedo sobre un capítulo puedes meter solo ese.
+- Abre la cola con el botón "Queue: N" de la pantalla de inicio (o con la franja bajo la barra de título en las vistas de cuadrícula y lista) y dale a "Start downloading". Todo se guarda en tu "Library", un título detrás de otro.
+- Toca una entrada para subirla arriba del todo o quitarla. "Clear the queue" la vacía.
+- La cola se acuerda de todo aunque reinicies. Los títulos que terminan salen de la cola; los que han dado problemas se quedan marcados como "failed" y se vuelven a intentar la próxima vez.
+- Puedes cancelar cuando quieras tocando el mensaje.
+
+### Descargas en paralelo y que no se duerma
+
+Las páginas se bajan de varias en varias, así que los capítulos van mucho más rápido. Elige cuántas a la vez en "Settings" > "Parallel page downloads" (de 1 a 6, por defecto 3). Si la web se queja o tu wifi va fatal, bájalo a 1.
+
+Mientras se baja algo (o la cola), el plugin mantiene el lector despierto para que no se duerma ni pierda el wifi a mitad de una descarga gorda. En cuanto termina, vuelve a dormirse como siempre.
+
+### Biblioteca, colecciones y orden
+
+La "Library" agrupa por título los capítulos que te has guardado, así que un manga es una sola entrada en vez de cincuenta. Toca un título para ver sus capítulos. Si de un título solo tienes un capítulo, sale directamente ese cómic.
+
+Cada capítulo te dice si está sin leer, a medias (con porcentaje) o leído (✓). Cuenta como leído cuando llegas más o menos al 97%, o si lo marcas como terminado en KOReader.
+
+Las **colecciones** son tus propios grupos de títulos ("Leyendo ahora", "Superhéroes", "Abandonados"...):
+
+- Mantén el dedo sobre un título y dale a "Collections..." para meterlo en una o crear una nueva.
+- Las colecciones salen primero en la "Library", entre corchetes. Toca una para ver sus títulos.
+- Mantén el dedo sobre una colección para renombrarla o borrarla. Borrar una colección nunca borra los cómics que tiene dentro.
+- Dentro de una colección, mantén el dedo sobre un título y elige "Remove from this collection".
+
+**Orden:** toca el botón "Sort" de abajo (o la primera fila en la lista simple).
+
+| Biblioteca | Capítulos de un título |
+| --- | --- |
+| "Recently added" | "Chapter order" |
+| "Oldest first" | "Newest chapter first" |
+| "Name A-Z" | "Continue reading" |
+| "Name Z-A" | "Unread first" |
+| "Continue reading" | |
+| "Unread first" | |
+| "Read first" | |
+
+"Continue reading" pone arriba lo que tienes a medias, y lo último que has leído el primero. Se acuerda de lo que elijas.
+
+Para quitarte un título entero de encima, mantén el dedo sobre él y elige "Delete all chapters".
+
 ## Contenido adulto y PIN
 
-El contenido adulto viene oculto por defecto. Las webs para adultos no aparecen, las búsquedas solo dan cosas para todos los públicos y los cómics para adultos que ya tengas también se esconden.
+El contenido adulto viene oculto por defecto. Las webs para adultos no aparecen, las búsquedas solo dan cosas para todos los públicos y los cómics para adultos que ya tengas también se esconden (la cola de descargas incluida).
 
 Para mostrarlo, mantén pulsado el logo en la pantalla de inicio. El logo se pone colorado y abajo del todo sale un aviso mientras el contenido adulto está visible. Mantén pulsado el logo otra vez para ocultarlo.
 
@@ -108,16 +154,22 @@ Si usas el lanzador [ZenOS](https://github.com/xZenLabs/zen-os), el plugin trae 
 | "View" | Resultados como cuadrícula de portadas, lista con portadas o lista simple. |
 | "Chapter language" | Idioma de los capítulos, como `es` (español), `en` (inglés) o `fr` (francés). |
 | "Page images" | "Data saver" va más rápido y ocupa menos; "original" se ve más nítido. Solo MangaDex tiene "data saver". |
+| "Parallel page downloads" | Cuántas páginas se bajan a la vez (de 1 a 6). Por defecto, 3. |
 | "Panels+" | Orden de lectura para Panels+, o dejarlo como está. |
 | "Comics kept in history" | Cuántos cómics recientes se guardan. Tu "Library" ni se toca. |
 | "Parental controls PIN" | Poner, cambiar o quitar el PIN. |
 | "Test connection" | Comprueba que la web actual va. |
 | "Clear history" | Borra los cómics de "History". Tu "Library" se queda. |
 
+El orden de la "Library" y el de los capítulos se cambian con el botón "Sort", no desde aquí.
+
 ## Problemas
 
 **Dice que la web está bloqueada.**
 Hay redes wifi (la del curro, la de clase) que bloquean las webs de cómics. Prueba con otra, por ejemplo compartiendo datos desde el móvil.
+
+**Una descarga ha fallado a medias.**
+Prueba a bajar "Settings" > "Parallel page downloads" a 1 o 2. Los títulos que fallan se quedan en la cola de descargas marcados como "failed"; tócalos y te dice el motivo.
 
 **Mis cómics no salen con mis libros.**
 Es a propósito, tío. Se guardan en una carpeta oculta y solo aparecen en el plugin. Tampoco salen en el historial de lectura de KOReader.
@@ -140,7 +192,7 @@ Cada web es un archivo en `APIKOmicReader.koplugin/apiko/sources/`. Todo lo que 
 2. Rellénalo. La plantilla explica cada parte y trae un ejemplo. `mangadex.lua` (manga con capítulos) y `nhentai.lua` (cómics sueltos) son de verdad, por si quieres cotillearlos.
 3. Copia el plugin al lector y reinicia KOReader.
 
-La búsqueda, las portadas, las descargas, el historial, la biblioteca, los marcadores y el control parental funcionan con la web nueva sin tocar nada más. Si el archivo de una web tiene algún fallo, simplemente se salta y el motivo queda en `crash.log` (busca `skipping source`). Los archivos que empiezan por `_` se ignoran.
+La búsqueda, las portadas, las descargas (también en paralelo), la cola, el historial, la biblioteca, las colecciones, los marcadores y el control parental funcionan con la web nueva sin tocar nada más. Si tu web da un `number` a los capítulos, "Download a range" y el orden de capítulos de la biblioteca lo usan. Si el archivo de una web tiene algún fallo, simplemente se salta y el motivo queda en `crash.log` (busca `skipping source`). Los archivos que empiezan por `_` se ignoran.
 
 ### Archivos
 
@@ -149,13 +201,14 @@ unsetup.bat                     Instalador para Windows
 tools/setup.ps1                 Lo que ejecuta el instalador
 docs/                           Las imágenes de este README
 APIKOmicReader.koplugin/        El plugin, va en koreader/plugins/
-  main.lua                      Pantallas, navegación, descargas, control parental
+  main.lua                      Pantallas, navegación, descargas, cola, control parental
   apiko/home.lua                Pantalla de inicio
   apiko/browser.lua             Vistas de cuadrícula y lista con portadas
   apiko/sources.lua             Carga las webs de apiko/sources/
   apiko/sources/                Un archivo por web, más _template.lua
-  apiko/comics.lua              Cómics descargados
-  apiko/store.lua               Marcadores y búsquedas guardadas y recientes
+  apiko/comics.lua              Cómics descargados y su progreso de lectura
+  apiko/library.lua             Agrupa la biblioteca por título y la ordena
+  apiko/store.lua               Marcadores, búsquedas, colecciones y cola de descargas
   apiko/paths.lua               Dónde va cada cosa
   apiko/http.lua                Habla con las webs
   apiko/settings.lua            Ajustes
@@ -163,4 +216,4 @@ APIKOmicReader.koplugin/        El plugin, va en koreader/plugins/
   assets/                       Logo, icono de la app e iconos de la pantalla de inicio
 ```
 
-Los cómics descargados van a la carpeta oculta `koreader/.apikomic/`, una carpeta por web.
+Los cómics descargados van a la carpeta oculta `koreader/.apikomic/`, una carpeta por web. La cola, las colecciones, los marcadores y las búsquedas se guardan en `koreader/.apikomic/data.lua`.

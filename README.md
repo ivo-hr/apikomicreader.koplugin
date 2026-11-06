@@ -64,9 +64,10 @@ On the home screen you've got:
 - Saved searches: the searches you saved.
 - Recent: your last searches.
 - Bookmarks: stuff you want to read later.
-- Library: comics you decided to keep.
+- Library: comics you decided to keep, grouped by title.
 - History: what you've read lately.
 - Settings.
+- Queue: when you have downloads waiting, a "Queue" button shows up at the top left (see [Download queue](#download-queue)).
 
 There's a back arrow at the top left of every screen, and an X to close the plugin. When you close a comic you go back to where you were.
 
@@ -85,9 +86,54 @@ There's a back arrow at the top left of every screen, and an X to close the plug
 
 Holding your finger on most things gives you more options (save, remove, delete).
 
+### Download queue
+
+Don't want to sit and watch downloads? Line them up and let them run.
+
+- Hold your finger on a result, or open a title's details, and tap "Add to download queue". In a chapter list, "Add all chapters to the download queue" queues the whole title, and holding a single chapter lets you queue just that one.
+- Open the queue from the "Queue: N" button on the home screen (or the strip under the title bar in the grid and list views), then tap "Start downloading". Everything is saved to your Library, one title after another.
+- Tap an entry to move it to the top or remove it. "Clear the queue" empties it.
+- The queue survives restarts. A title that finishes leaves the queue; one that had a problem stays marked "failed" and gets tried again next time.
+- You can cancel at any time by tapping the message.
+
+### Parallel downloads and staying awake
+
+Pages are fetched several at a time, which makes chapters download a lot faster. Pick how many in Settings > Parallel page downloads (1 to 6, default 3). If the site starts complaining or your Wi-Fi is bad, drop it to 1.
+
+While a download or the queue is running, the plugin keeps the device awake so it doesn't go to sleep or lose Wi-Fi halfway through a big batch. Normal sleep comes back as soon as it's done.
+
+### Library, collections and sorting
+
+The Library groups the chapters you saved by title, so one manga is one entry instead of fifty. Tap a title to see its chapters. A title with a single saved chapter just shows up as that comic.
+
+Each chapter shows whether it's unread, half-read (with a percentage) or read (✓). A title counts as read once you're about 97% of the way through, or if you mark it finished in KOReader.
+
+**Collections** are your own groups of titles ("Reading now", "Superheroes", "Dropped"...):
+
+- Hold your finger on a title and tap Collections... to add it to one or make a new collection.
+- Collections show up first in the Library, in square brackets. Tap one to see its titles.
+- Hold a collection to rename or delete it. Deleting a collection never deletes the comics inside it.
+- Inside a collection, hold a title and pick "Remove from this collection".
+
+**Sorting:** tap the Sort button at the bottom (or the first row in the simple list view).
+
+| Library | Chapters of a title |
+| --- | --- |
+| Recently added | Chapter order |
+| Oldest first | Newest chapter first |
+| Name A-Z | Continue reading |
+| Name Z-A | Unread first |
+| Continue reading | |
+| Unread first | |
+| Read first | |
+
+"Continue reading" puts what you're in the middle of first, most recently read on top. Your choice is remembered.
+
+To get rid of a whole title, hold your finger on it and pick "Delete all chapters".
+
 ## Adult content and the PIN
 
-Adult content is hidden by default. Adult sites don't show up, searches only give all-ages stuff, and any adult comics you already have are hidden too.
+Adult content is hidden by default. Adult sites don't show up, searches only give all-ages stuff, and any adult comics you already have are hidden too (that includes the download queue).
 
 To show it, long-press the logo on the home screen. The logo blushes and a warning stays at the bottom of the screen while adult content is visible. Long-press the logo again to hide it.
 
@@ -108,16 +154,22 @@ If you use the [ZenOS](https://github.com/xZenLabs/zen-os) launcher, the plugin 
 | View | Results as a grid of covers, a list with covers, or a plain list. |
 | Chapter language | Language for chapters, like `en` (English), `es` (Spanish) or `fr` (French). |
 | Page images | "Data saver" is faster and smaller, "original" looks sharper. Only MangaDex has data saver. |
+| Parallel page downloads | How many pages are downloaded at the same time (1 to 6). Default is 3. |
 | Panels+ | Reading order for Panels+, or leave it alone. |
 | Comics kept in history | How many recent comics to keep. Doesn't touch your library. |
 | Parental controls PIN | Set, change or remove the PIN. |
 | Test connection | Checks the current site works. |
 | Clear history | Deletes the comics in History. Your library stays. |
 
+The Library sort order and the chapter sort order are changed with the Sort button, not here.
+
 ## Problems
 
 **It says the site is blocked.**
 Some Wi-Fi networks (work, school) block comic sites. Try another one, like your phone's hotspot.
+
+**A download failed halfway.**
+Try lowering Settings > Parallel page downloads to 1 or 2. Failed titles stay in the download queue marked "failed", and hold/tap them to see the reason.
 
 **My comics aren't with my books.**
 That's on purpose. They're kept in a hidden folder and only show up in the plugin. They don't appear in KOReader's reading history either.
@@ -140,7 +192,7 @@ Every site is one file in `APIKOmicReader.koplugin/apiko/sources/`. Whatever is 
 2. Fill it in. The template explains each part and has an example. `mangadex.lua` (manga with chapters) and `nhentai.lua` (single comics) are real ones you can look at.
 3. Copy the plugin to the device and restart KOReader.
 
-Search, covers, downloads, history, library, bookmarks and the parental controls all work for the new site without changing anything else. If a site file has a mistake it just gets skipped and the reason goes in `crash.log` (search for `skipping source`). Files starting with `_` are ignored.
+Search, covers, downloads (parallel too), the queue, history, library, collections, bookmarks and the parental controls all work for the new site without changing anything else. If your site gives chapters a `number`, "Download a range" and the library's chapter order use it. If a site file has a mistake it just gets skipped and the reason goes in `crash.log` (search for `skipping source`). Files starting with `_` are ignored.
 
 ### Files
 
@@ -149,13 +201,14 @@ unsetup.bat                     Windows installer
 tools/setup.ps1                 What the installer runs
 docs/                           The pictures in this README
 APIKOmicReader.koplugin/        The plugin, goes in koreader/plugins/
-  main.lua                      Screens, navigation, downloads, parental controls
+  main.lua                      Screens, navigation, downloads, queue, parental controls
   apiko/home.lua                Home screen
   apiko/browser.lua             Grid and list views with covers
   apiko/sources.lua             Loads the sites in apiko/sources/
   apiko/sources/                One file per site, plus _template.lua
-  apiko/comics.lua              Downloaded comics
-  apiko/store.lua               Bookmarks, saved and recent searches
+  apiko/comics.lua              Downloaded comics and their reading progress
+  apiko/library.lua             Groups the library by title and sorts it
+  apiko/store.lua               Bookmarks, searches, collections and the download queue
   apiko/paths.lua               Where files go
   apiko/http.lua                Talks to the sites
   apiko/settings.lua            Settings
@@ -163,4 +216,4 @@ APIKOmicReader.koplugin/        The plugin, goes in koreader/plugins/
   assets/                       Logo, app icon and home screen icons
 ```
 
-Downloaded comics go in the hidden folder `koreader/.apikomic/`, one folder per site.
+Downloaded comics go in the hidden folder `koreader/.apikomic/`, one folder per site. The queue, collections, bookmarks and searches are kept in `koreader/.apikomic/data.lua`.
