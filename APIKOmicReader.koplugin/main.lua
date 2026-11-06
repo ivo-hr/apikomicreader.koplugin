@@ -11,6 +11,9 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local logger = require("logger")
 local _ = require("gettext")
 local T = require("ffi/util").template
+local ffiUtil = require("ffi/util")
+local lfs = require("libs/libkoreader-lfs")
+local Event = require("ui/event")
 
 -- Plugin-local modules must be required at load time, while the plugin
 -- directory is on package.path.
@@ -18,6 +21,7 @@ local Browser = require("apiko.browser")
 local Home = require("apiko.home")
 local Comics = require("apiko.comics")
 local Http = require("apiko.http")
+local Library = require("apiko.library")
 local Paths = require("apiko.paths")
 local Settings = require("apiko.settings")
 local Sources = require("apiko.sources")
@@ -33,6 +37,7 @@ local ApiKomic = WidgetContainer:extend{
 local adult_unlocked = false -- PIN entered since the plugin was last left or the device slept
 local return_nav = nil       -- screens to restore after closing a comic opened from the plugin
 local return_ready = false   -- that comic was closed: restore return_nav in the file manager
+local queue_running = false   -- the download queue is being processed
 
 local VIEW_MODES = {
     { id = "grid", text = _("Grid with covers") },
@@ -84,6 +89,45 @@ local function busy(text, fn)
     end
     return a, b
 end
+
+-- Keeping the device awake while downloads run ---------------------------------------
+local awake_count = 0
+local last_pulse = 0
+
+local function awakeStart()
+    awake_count = awake_count + 1
+    if awake_count == 1 then pcall(UIManager.preventStandby, UIManager) end
+end
+
+local function awakeStop()
+    awake_count = math.max(0, awake_count - 1)
+    if awake_count == 0 then pcall(UIManager.allowStandby, UIManager) end
+end
+
+-- Call often while downloading: restarts the auto-suspend countdown (at most every 5 s).
+local function awakePulse()
+    local now = os.time()
+    if now - last_pulse < 5 then return end
+    last_pulse = now
+    pcall(function() UIManager:broadcastEvent(Event:new("InputEvent")) end)
+end
+
+-- Runs fn with standby and auto-suspend held off; returns its results.
+local function whileAwake(fn)
+    awakeStart()
+    local ok, a, b = pcall(fn)
+    awakeStop()
+    if not ok then error(a, 0) end
+    return a, b
+end
+
+local PARALLEL_CHOICES = {
+    { id = 1, text = _("1 (one at a time)") },
+    { id = 2, text = "2" },
+    { id = 3, text = "3" },
+    { id = 4, text = "4" },
+    { id = 6, text = "6" },
+}
 
 local function hashPin(pin)
     local sha2 = require("ffi/sha2")
@@ -361,6 +405,8 @@ end
 -- Simple list screen with back and close buttons. Items take text,
 -- mandatory, callback and hold_callback.
 function ApiKomic:showMenu(entry, title, item_table)
+    local queue_item = self:queueMenuItem(entry)
+    if queue_item then table.insert(item_table, 1, queue_item) end
     local view
     view = Menu:new{
         title = title,
@@ -398,6 +444,7 @@ end
 --   on_tap(item), on_hold(item)                                  [on_hold optional]
 function ApiKomic:showItems(entry, opts)
     local mode = Settings.get().view_mode
+    local actions = opts.actions or {}
     if mode == "grid" or mode == "list_icons" then
         local view = Browser:new{
             title = opts.title,
@@ -411,6 +458,8 @@ function ApiKomic:showItems(entry, opts)
             on_tap = opts.on_tap,
             on_hold = opts.on_hold,
             on_back = #self.nav > 1 and function() self:navBack() end or nil,
+            banner = self:queueBanner(entry),
+            footer_buttons = actions,
             close_callback = function() self:exit() end,
         }
         self.view = view
@@ -421,6 +470,10 @@ function ApiKomic:showItems(entry, opts)
     local view
     local function buildTable()
         local menu_items = {}
+        -- Actions (e.g. sorting) come first, as rows.
+        for __, a in ipairs(actions) do
+            table.insert(menu_items, { text = a.long_text or a.text, callback = a.callback })
+        end
         for __, item in ipairs(opts.items) do
             table.insert(menu_items, {
                 text = item.title,
@@ -433,10 +486,13 @@ function ApiKomic:showItems(entry, opts)
             table.insert(menu_items, {
                 text = _("Load more…"),
                 callback = function()
-                    local first_new = #opts.items + 1
+                    local queue_item = self:queueMenuItem(entry)
+                    local first_new = #opts.items + 1 + #actions + (queue_item and 1 or 0)
                     if not opts.load_more() then return end
                     if self.view == view then
-                        view:switchItemTable(nil, self:wrapItems(buildTable()), first_new)
+                        local rows = buildTable()
+                        if queue_item then table.insert(rows, 1, queue_item) end
+                        view:switchItemTable(nil, self:wrapItems(rows), first_new)
                     else
                         self:navRefresh()
                     end
@@ -488,6 +544,8 @@ function ApiKomic:showHome(entry)
     local view = Home:new{
         source_name = source and source.name,
         adult_shown = adultAllowed(),
+        queue_count = self:queueCount(),
+        on_queue = function() self:navPush{ screen = "queue" } end,
         tiles = tiles,
         on_search = function()
             if source then self:showSearch(source) end
@@ -653,7 +711,31 @@ function ApiKomic:showResults(entry)
         fetch_thumb = function(item) return self:fetchThumb(source, item) end,
         subtitle = subtitleOf,
         on_tap = function(item) self:showDetails(source, item) end,
+        on_hold = function(item) self:resultActions(source, item) end,
     })
+end
+
+function ApiKomic:resultActions(source, item)
+    local queued = Store.isQueued(source.id, item.id)
+    local dialog
+    dialog = ButtonDialog:new{
+        title = item.title,
+        buttons = {
+            {{ text = _("Details"), callback = function()
+                UIManager:close(dialog)
+                self:showDetails(source, item)
+            end }},
+            {{
+                text = queued and _("In the download queue") or _("Add to download queue"),
+                enabled = not queued,
+                callback = function()
+                    UIManager:close(dialog)
+                    self:enqueue(source, item)
+                end,
+            }},
+        },
+    }
+    UIManager:show(dialog)
 end
 
 -- Recent and saved searches: tap runs the search again.
@@ -769,6 +851,12 @@ function ApiKomic:showDetails(source, item)
                 callback = closeThen(function() self:openItem(source, item, true) end),
             })
         end
+        local queued = Store.isQueued(source.id, item.id)
+        local row_queue = {{
+            text = queued and _("In the download queue") or _("Add to download queue"),
+            enabled = not queued,
+            callback = closeThen(function() self:enqueue(source, item) end),
+        }}
         local row2 = {
             { text = _("Close"), callback = function() UIManager:close(viewer) end },
             {
@@ -779,7 +867,7 @@ function ApiKomic:showDetails(source, item)
         viewer = TextViewer:new{
             title = item.title,
             text = text or err or item.title,
-            buttons_table = { row1, row2 },
+            buttons_table = { row1, row_queue, row2 },
         }
         UIManager:show(viewer)
     end)
@@ -871,6 +959,11 @@ function ApiKomic:showChapters(entry)
             text = _("Download a range…"),
             callback = function() self:askRange(source, item, entry.chapters) end,
         },
+        {
+            text = Store.isQueued(source.id, item.id) and _("All chapters are in the download queue")
+                or _("Add all chapters to the download queue"),
+            callback = function() self:enqueue(source, item) end,
+        },
     }
     for __, chapter in ipairs(entry.chapters) do
         table.insert(items, {
@@ -879,6 +972,7 @@ function ApiKomic:showChapters(entry)
             callback = function() self:download(source, item, chapter) end,
             hold_callback = function()
                 local dialog
+                local queued_chapter = Store.isQueued(source.id, item.id, chapter.id)
                 dialog = ButtonDialog:new{
                     title = chapter.title,
                     buttons = {
@@ -890,6 +984,14 @@ function ApiKomic:showChapters(entry)
                             UIManager:close(dialog)
                             self:download(source, item, chapter, true)
                         end }},
+                        {{
+                            text = queued_chapter and _("In the download queue") or _("Add to download queue"),
+                            enabled = not queued_chapter,
+                            callback = function()
+                                UIManager:close(dialog)
+                                self:enqueue(source, item, chapter)
+                            end,
+                        }},
                     },
                 }
                 UIManager:show(dialog)
@@ -921,7 +1023,321 @@ function ApiKomic:showComics(entry)
     })
 end
 
-function ApiKomic:comicActions(source, item, in_library)
+-- Library ------------------------------------------------------------------------
+-- The library groups chapters of the same title. Top level: the user's
+-- collections, then titles that are in no collection (a title with a single
+-- saved chapter is shown as that comic). A title opens to its chapters; a
+-- collection opens to its titles.
+
+function ApiKomic:askName(title, initial, callback)
+    local dialog
+    dialog = InputDialog:new{
+        title = title,
+        input = initial or "",
+        buttons = {{
+            { text = _("Cancel"), id = "close", callback = function() UIManager:close(dialog) end },
+            { text = _("OK"), is_enter_default = true, callback = function()
+                local name = dialog:getInputText():match("^%s*(.-)%s*$")
+                UIManager:close(dialog)
+                if name ~= "" then callback(name) end
+            end },
+        }},
+    }
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+end
+
+-- Tap a collection to add the title to it, or remove it (✓ = it is in it).
+function ApiKomic:pickCollection(source, key, name)
+    local dialog
+    local rows = {}
+    for __, c in ipairs(Store.collections(source.id)) do
+        local has = Store.inCollection(c, key)
+        table.insert(rows, {{
+            text = (has and "✓ " or "") .. c.name,
+            callback = function()
+                UIManager:close(dialog)
+                if has then Store.collectionRemove(c.id, key) else Store.collectionAdd(c.id, key) end
+                showMessage(has and T(_("Removed from \"%1\"."), c.name) or T(_("Added to \"%1\"."), c.name))
+                self:navRefresh()
+            end,
+        }})
+    end
+    table.insert(rows, {{
+        text = _("New collection…"),
+        callback = function()
+            UIManager:close(dialog)
+            self:askName(_("New collection"), "", function(new_name)
+                local c = Store.addCollection(source.id, new_name)
+                Store.collectionAdd(c.id, key)
+                self:navRefresh()
+            end)
+        end,
+    }})
+    dialog = ButtonDialog:new{ title = T(_("Collections for \"%1\""), name), buttons = rows }
+    UIManager:show(dialog)
+end
+
+local function statusText(c)
+    if c.status == "read" then return _("Read") end
+    if c.status == "reading" then return string.format("%d%%", math.floor((c.percent or 0) * 100)) end
+    return _("Unread")
+end
+
+-- A group as shown in the library: a lone chapter is that comic itself.
+local function groupItem(g)
+    if #g.comics == 1 then
+        local c = g.comics[1]
+        c.series_name = g.name
+        if c.status == "read" then
+            local copy = {}
+            for k, v in pairs(c) do copy[k] = v end
+            copy.title = "✓ " .. c.title
+            return copy
+        end
+        return c
+    end
+    return {
+        kind = "series",
+        key = g.key,
+        name = g.name,
+        group = g,
+        title = (g.read == g.total and "✓ " or "") .. T(_("%1 (%2)"), g.name, g.total),
+        path = g.comics[1].path,  -- the cover is the first chapter's first page
+        adult = g.adult,
+        mtime = g.mtime,
+    }
+end
+
+local function libraryGroups(source)
+    return Library.groups(source.id, visible(Comics.list(Paths.library(source.id))))
+end
+
+-- Sort button (a footer button in the grid/cover views, the first row in the simple list).
+function ApiKomic:sortAction(kind)
+    local s = Settings.get()
+    local chapters = kind == "chapters"
+    local choices = chapters and Library.CHAPTER_SORTS or Library.GROUP_SORTS
+    local current = chapters and s.chapter_sort or s.library_sort
+    return {
+        text = _("Sort"),
+        long_text = T(_("Sort: %1"), choiceText(choices, current)),
+        callback = function() self:pickSort(kind) end,
+    }
+end
+
+function ApiKomic:pickSort(kind)
+    local s = Settings.get()
+    local chapters = kind == "chapters"
+    local key = chapters and "chapter_sort" or "library_sort"
+    self:pickChoice(chapters and _("Sort chapters") or _("Sort library"),
+        chapters and Library.CHAPTER_SORTS or Library.GROUP_SORTS, s[key], function(id)
+            s[key] = id
+            Settings.save()
+            if self.view then self.view.page = 1 end  -- start from the top of the new order
+            self:navRefresh()
+        end)
+end
+
+function ApiKomic:showLibrary(entry)
+    local source = entry.source
+    local sort = Settings.get().library_sort
+    local groups = libraryGroups(source)
+    Library.sortGroups(groups, sort)
+    local collection
+    if entry.collection_id then
+        collection = Store.collection(source.id, entry.collection_id)
+        if not collection then return self:navEmpty(_("That collection no longer exists.")) end
+    end
+
+    local items = {}
+    if collection then
+        local members = {}
+        for __, k in ipairs(collection.members) do members[k] = true end
+        for __, g in ipairs(groups) do
+            if members[g.key] then table.insert(items, groupItem(g)) end
+        end
+        if #items == 0 then
+            return self:navEmpty(_("This collection is empty. Long-press a title in the library to add it."))
+        end
+    else
+        local in_collection = {}
+        local cols = {}
+        for __, c in ipairs(Store.collections(source.id)) do
+            local members = {}
+            for __, k in ipairs(c.members) do
+                members[k] = true
+                in_collection[k] = true
+            end
+            local col = {
+                kind = "collection", collection = c, key = c.id, name = c.name,
+                title = "[" .. c.name .. "]", count = 0,
+                total = 0, unread = 0, reading = 0, read = 0, last_read = 0, mtime = 0,
+            }
+            for __, g in ipairs(groups) do
+                if members[g.key] then
+                    col.count = col.count + 1
+                    col.path = col.path or g.comics[1].path
+                    col.total = col.total + g.total
+                    col.unread = col.unread + g.unread
+                    col.reading = col.reading + g.reading
+                    col.read = col.read + g.read
+                    col.last_read = math.max(col.last_read, g.last_read)
+                    col.mtime = math.max(col.mtime, g.mtime)
+                end
+            end
+            -- A collection holding only hidden (adult) titles stays out of sight.
+            if col.count > 0 or #c.members == 0 then table.insert(cols, col) end
+        end
+        Library.sortGroups(cols, sort)
+        for __, col in ipairs(cols) do table.insert(items, col) end
+        for __, g in ipairs(groups) do
+            if not in_collection[g.key] then table.insert(items, groupItem(g)) end
+        end
+        if #items == 0 then
+            return self:navEmpty(_("The library is empty. Use \"Save to library\", or long-press a comic in History."))
+        end
+    end
+
+    self:showItems(entry, {
+        title = collection and T(_("Collection: %1"), collection.name) or T(_("Library: %1"), source.name),
+        items = items,
+        actions = { self:sortAction("library") },
+        fetch_thumb = function(item) return item.path and ZipWriter.readFirstEntry(item.path) or nil end,
+        subtitle = function(item)
+            if item.kind == "collection" then return T(_("%1 titles"), item.count) end
+            if item.kind == "series" then
+                local g = item.group
+                local text = T(_("%1 chapters"), g.total)
+                if g.read == g.total then
+                    text = text .. " · " .. _("read")
+                elseif g.unread < g.total then
+                    text = text .. " · " .. T(_("%1 unread"), g.unread)
+                    if g.reading > 0 then text = text .. " · " .. _("reading") end
+                end
+                return text
+            end
+            return statusText(item) .. " · " .. os.date("%Y-%m-%d %H:%M", item.mtime)
+        end,
+        on_tap = function(item)
+            if item.kind == "collection" then
+                self:navPush{ screen = "collection", source = source, collection_id = item.collection.id }
+            elseif item.kind == "series" then
+                self:navPush{ screen = "series", source = source, group_key = item.key,
+                              collection_id = entry.collection_id }
+            else
+                self:openComic(item.path)
+            end
+        end,
+        on_hold = function(item)
+            if item.kind == "collection" then
+                self:collectionActions(source, item.collection)
+            elseif item.kind == "series" then
+                self:seriesActions(source, item.key, item.name, item.group.comics, entry.collection_id)
+            else
+                self:comicActions(source, item, true, entry.collection_id)
+            end
+        end,
+    })
+end
+
+-- The chapters of one title.
+function ApiKomic:showSeries(entry)
+    local source = entry.source
+    local group
+    for __, g in ipairs(libraryGroups(source)) do
+        if g.key == entry.group_key then group = g break end
+    end
+    if not group then return self:navEmpty(_("No chapters left in this title.")) end
+    Library.sortChapters(group.comics, Settings.get().chapter_sort)
+    -- Chapter names without the repeated title: "Title - Ch. 5" -> "Ch. 5",
+    -- with a ✓ when read and the percentage when half-read.
+    local prefix = safeName(group.name) .. " - "
+    local items = {}
+    for __, c in ipairs(group.comics) do
+        local copy = {}
+        for k, v in pairs(c) do copy[k] = v end
+        if c.title:sub(1, #prefix) == prefix and #c.title > #prefix then
+            copy.title = c.title:sub(#prefix + 1)
+        end
+        if c.status == "read" then
+            copy.title = "✓ " .. copy.title
+        elseif c.status == "reading" then
+            copy.title = copy.title .. string.format(" (%d%%)", math.floor((c.percent or 0) * 100))
+        end
+        table.insert(items, copy)
+    end
+    self:showItems(entry, {
+        title = group.name,
+        items = items,
+        actions = { self:sortAction("chapters") },
+        fetch_thumb = function(item) return ZipWriter.readFirstEntry(item.path) end,
+        subtitle = function(item) return statusText(item) .. " · " .. os.date("%Y-%m-%d %H:%M", item.mtime) end,
+        on_tap = function(item) self:openComic(item.path) end,
+        on_hold = function(item) self:comicActions(source, item, true) end,
+    })
+end
+
+function ApiKomic:seriesActions(source, key, name, comics, collection_id)
+    local dialog
+    local rows = {
+        {{ text = _("Collections…"), callback = function()
+            UIManager:close(dialog)
+            self:pickCollection(source, key, name)
+        end }},
+    }
+    if collection_id then
+        table.insert(rows, {{ text = _("Remove from this collection"), callback = function()
+            UIManager:close(dialog)
+            Store.collectionRemove(collection_id, key)
+            self:navRefresh()
+        end }})
+    end
+    table.insert(rows, {{ text = _("Delete all chapters"), callback = function()
+        UIManager:close(dialog)
+        UIManager:show(ConfirmBox:new{
+            text = T(_("Delete all %1 chapters of \"%2\" from the library?"), #comics, name),
+            ok_text = _("Delete"),
+            ok_callback = function()
+                for __, c in ipairs(comics) do Comics.delete(c.path) end
+                self:navRefresh()
+            end,
+        })
+    end }})
+    dialog = ButtonDialog:new{ title = name, buttons = rows }
+    UIManager:show(dialog)
+end
+
+function ApiKomic:collectionActions(source, collection)
+    local dialog
+    dialog = ButtonDialog:new{
+        title = collection.name,
+        buttons = {
+            {{ text = _("Rename"), callback = function()
+                UIManager:close(dialog)
+                self:askName(_("Rename collection"), collection.name, function(name)
+                    Store.renameCollection(collection.id, name)
+                    self:navRefresh()
+                end)
+            end }},
+            {{ text = _("Delete collection"), callback = function()
+                UIManager:close(dialog)
+                UIManager:show(ConfirmBox:new{
+                    text = T(_("Delete the collection \"%1\"? Its comics stay in the library."), collection.name),
+                    ok_text = _("Delete"),
+                    ok_callback = function()
+                        Store.deleteCollection(collection.id)
+                        self:navRefresh()
+                    end,
+                })
+            end }},
+        },
+    }
+    UIManager:show(dialog)
+end
+
+-- collection_id: set when shown inside that collection.
+function ApiKomic:comicActions(source, item, in_library, collection_id)
     local dialog
     local rows = {}
     if not in_library then
@@ -934,6 +1350,26 @@ function ApiKomic:comicActions(source, item, in_library)
                 self:navRefresh()
             end,
         }})
+    else
+        local key = item.group_key or Library.keyOf(source.id, item)
+        local name = item.series_name or Library.nameOf(source.id, item)
+        table.insert(rows, {{
+            text = _("Collections…"),
+            callback = function()
+                UIManager:close(dialog)
+                self:pickCollection(source, key, name)
+            end,
+        }})
+        if collection_id then
+            table.insert(rows, {{
+                text = _("Remove from this collection"),
+                callback = function()
+                    UIManager:close(dialog)
+                    Store.collectionRemove(collection_id, key)
+                    self:navRefresh()
+                end,
+            }})
+        end
     end
     table.insert(rows, {{
         text = _("Delete"),
@@ -1027,10 +1463,176 @@ function ApiKomic:download(source, item, chapter, to_library)
     end)
 end
 
+-- Downloads all pages into zip, in order. Several pages are fetched at once,
+-- each by its own subprocess (a blocking socket call would freeze the screen
+-- otherwise). Returns true, or nil and an error (no error when cancelled).
+function ApiKomic:fetchPages(source, pages, zip, status)
+    local total = #pages
+    local parallel = math.min(8, math.max(1, tonumber(Settings.get().parallel_downloads) or 3))
+
+    local function progress(n)
+        return Trapper:info(status .. T(_("Downloading page %1 of %2…\n\nTap to cancel."), math.min(n, total), total))
+    end
+
+    -- One page at a time, in this process.
+    local function sequential(from)
+        for i = from, total do
+            if not progress(i) then return nil end
+            awakePulse()
+            local data, err = self:fetchImage(source, pages[i])
+            if not data then return nil, T(_("Page %1 failed: %2"), i, err) end
+            zip:add(string.format("%04d.%s", i, imageExt(data) or "jpg"), data)
+        end
+        return true
+    end
+    if parallel <= 1 or total <= 1 then return sequential(1) end
+
+    local dir = Paths.tmp()
+    local function cleanTmp()
+        for name in lfs.dir(dir) do
+            if name ~= "." and name ~= ".." then os.remove(dir .. "/" .. name) end
+        end
+    end
+    cleanTmp()
+
+    local workers, count = {}, 0   -- pid -> { i, tmp, tries }
+    local ready = {}               -- page number -> true once its file is complete
+    local next_start, next_write = 1, 1
+    local window = parallel * 3    -- how far ahead of the page being written to fetch
+    local last_info = os.time()
+
+    local function tmpName(i) return string.format("%s/%d.img", dir, i) end
+
+    local function startWorker(i, tries)
+        local tmp = tmpName(i)
+        os.remove(tmp)
+        os.remove(tmp .. ".err")
+        local ok, pid = pcall(ffiUtil.runInSubProcess, function()
+            local data, err = self:fetchImage(source, pages[i])
+            if data then
+                local f = io.open(tmp .. ".part", "wb")
+                if f then
+                    f:write(data)
+                    f:close()
+                    os.rename(tmp .. ".part", tmp)
+                    return
+                end
+                err = "cannot write a temporary file"
+            end
+            local f = io.open(tmp .. ".err", "wb")
+            if f then
+                f:write(tostring(err or "?"))
+                f:close()
+            end
+        end)
+        if not ok or not pid then return false end
+        workers[pid] = { i = i, tmp = tmp, tries = tries }
+        count = count + 1
+        return true
+    end
+
+    local function stopAll()
+        if next(workers) then
+            for pid in pairs(workers) do pcall(ffiUtil.terminateSubProcess, pid) end
+            ffiUtil.usleep(50000)
+            for pid in pairs(workers) do pcall(ffiUtil.isSubProcessDone, pid) end
+        end
+        workers, count = {}, 0
+        cleanTmp()
+    end
+
+    local function failed(i, err)
+        stopAll()
+        return nil, T(_("Page %1 failed: %2"), i, err or "?")
+    end
+
+    if not progress(1) then return nil end
+    while next_write <= total do
+        -- Collect finished workers; a page that failed is tried once more.
+        local retry = {}
+        for pid, w in pairs(workers) do
+            if ffiUtil.isSubProcessDone(pid) then
+                workers[pid] = nil
+                count = count - 1
+                if lfs.attributes(w.tmp, "mode") == "file" then
+                    ready[w.i] = true
+                else
+                    local err
+                    local f = io.open(w.tmp .. ".err", "rb")
+                    if f then
+                        err = f:read("*a")
+                        f:close()
+                    end
+                    os.remove(w.tmp .. ".err")
+                    if w.tries >= 2 then return failed(w.i, err) end
+                    table.insert(retry, w)
+                end
+            end
+        end
+        for __, w in ipairs(retry) do
+            if not startWorker(w.i, w.tries + 1) then return failed(w.i, _("could not start a download")) end
+        end
+
+        -- Write the pages that are ready, in order.
+        local wrote = false
+        while ready[next_write] do
+            local tmp = tmpName(next_write)
+            local f = io.open(tmp, "rb")
+            local data = f and f:read("*a")
+            if f then f:close() end
+            os.remove(tmp)
+            ready[next_write] = nil
+            if not data or #data == 0 then return failed(next_write, _("empty file")) end
+            zip:add(string.format("%04d.%s", next_write, imageExt(data) or "jpg"), data)
+            next_write = next_write + 1
+            wrote = true
+        end
+        if next_write > total then break end
+
+        -- Keep the workers busy.
+        while count < parallel and next_start <= total and next_start < next_write + window do
+            if not startWorker(next_start, 1) then
+                if count == 0 then
+                    -- Cannot start subprocesses here: carry on one page at a time.
+                    stopAll()
+                    return sequential(next_write)
+                end
+                break
+            end
+            next_start = next_start + 1
+        end
+
+        if wrote then
+            if not progress(next_write) then
+                stopAll()
+                return nil
+            end
+            last_info = os.time()
+        else
+            ffiUtil.usleep(40000)
+            -- Now and then let a tap through, to cancel.
+            if os.time() - last_info >= 2 then
+                last_info = os.time()
+                if not progress(next_write) then
+                    stopAll()
+                    return nil
+                end
+            end
+        end
+        awakePulse()
+    end
+    stopAll()
+    return true
+end
+
 -- Downloads one chapter into dir as a CBZ; must run inside Trapper:wrap.
 -- `status` is shown above the progress. Returns the file's path, or nil and
--- an error message (no message when the user cancelled).
+-- an error message (no message when the user cancelled). Keeps the device awake.
 function ApiKomic:fetchChapter(source, item, chapter, dir, status)
+    return whileAwake(function() return self:fetchChapterNow(source, item, chapter, dir, status) end)
+end
+
+function ApiKomic:fetchChapterNow(source, item, chapter, dir, status)
     if not Trapper:info(status .. _("Fetching page list…")) then return nil end
     local ok, pages, err = pcall(source.getPages, source, chapter, sourceOpts())
     if not ok then pages, err = nil, tostring(pages) end
@@ -1042,23 +1644,31 @@ function ApiKomic:fetchChapter(source, item, chapter, dir, status)
     local zip, zerr = ZipWriter.open(part)
     if not zip then return nil, T(_("Cannot write file: %1"), zerr) end
 
-    for i, page in ipairs(pages) do
-        if not Trapper:info(status .. T(_("Downloading page %1 of %2…\n\nTap to cancel."), i, #pages)) then
-            zip:abort()
-            os.remove(part)
-            return nil
-        end
-        local data, derr = self:fetchImage(source, page)
-        if not data then
-            zip:abort()
-            os.remove(part)
-            return nil, T(_("Page %1 failed: %2"), i, derr)
-        end
-        zip:add(string.format("%04d.%s", i, imageExt(data)), data)
+    local complete, derr = self:fetchPages(source, pages, zip, status)
+    if not complete then
+        zip:abort()
+        os.remove(part)
+        return nil, derr
     end
     zip:close()
     os.rename(part, final)
+    -- Remember which title this chapter belongs to (the library groups by it).
+    pcall(Store.setChapterMeta, source.id .. "_" .. chapter.id, item.title, chapter.number)
     return final
+end
+
+-- Saves one chapter to the library: "skipped" (already there), "saved", or
+-- nil and an error (no error when the user cancelled). Moves it out of
+-- History if it is there. Must run inside Trapper:wrap.
+function ApiKomic:saveChapter(source, item, chapter, status)
+    local key = source.id .. "_" .. chapter.id
+    local library_dir, history_dir = Paths.library(source.id), Paths.history(source.id)
+    if Comics.find(library_dir, key) then return "skipped" end
+    local in_history = Comics.find(history_dir, key)
+    if in_history and Comics.move(in_history, library_dir) then return "saved" end
+    local path, err = self:fetchChapter(source, item, chapter, library_dir, status)
+    if path then return "saved" end
+    return nil, err
 end
 
 -- Bulk downloads ---------------------------------------------------------------------
@@ -1122,22 +1732,18 @@ end
 -- Saves chapters to the library one after another, skipping those already
 -- there and moving those already in History.
 function ApiKomic:downloadChapters(source, item, chapters)
-    local library_dir, history_dir = Paths.library(source.id), Paths.history(source.id)
     NetworkMgr:runWhenOnline(function()
         Trapper:wrap(function()
             local saved, skipped, failed, cancelled = 0, 0, {}, false
-            for n, chapter in ipairs(chapters) do
-                local key = source.id .. "_" .. chapter.id
-                local in_history = Comics.find(history_dir, key)
-                if Comics.find(library_dir, key) then
-                    skipped = skipped + 1
-                elseif in_history and Comics.move(in_history, library_dir) then
-                    saved = saved + 1
-                else
+            awakeStart()
+            local run_ok, run_err = pcall(function()
+                for n, chapter in ipairs(chapters) do
                     local status = T(_("Chapter %1 of %2: %3\n"), n, #chapters, chapter.title)
-                    local path, err = self:fetchChapter(source, item, chapter, library_dir, status)
-                    if path then
+                    local result, err = self:saveChapter(source, item, chapter, status)
+                    if result == "saved" then
                         saved = saved + 1
+                    elseif result == "skipped" then
+                        skipped = skipped + 1
                     elseif err then
                         logger.warn("APIKOmic: chapter failed", chapter.id, err)
                         table.insert(failed, chapter.title .. ": " .. err)
@@ -1146,6 +1752,11 @@ function ApiKomic:downloadChapters(source, item, chapters)
                         break
                     end
                 end
+            end)
+            awakeStop()
+            if not run_ok then
+                logger.err("APIKOmic:", run_err)
+                table.insert(failed, tostring(run_err))
             end
             Trapper:clear()
             local lines = { cancelled and _("Download cancelled.") or _("Download finished.") }
@@ -1159,6 +1770,209 @@ function ApiKomic:downloadChapters(source, item, chapters)
             if self:topScreen() == "chapters" then self:navRefresh() end
         end)
     end)
+end
+
+-- Download queue --------------------------------------------------------------------
+-- Titles (every chapter) or single chapters waiting to be saved to the library.
+-- They are kept across restarts and downloaded one after another on request.
+
+function ApiKomic:queueCount()
+    return #visible(Store.queue())
+end
+
+-- Button for the top of a grid/cover view, or nil when there is no queue.
+function ApiKomic:queueBanner(entry)
+    if entry.screen == "queue" then return nil end
+    local n = self:queueCount()
+    if n == 0 then return nil end
+    return {
+        text = T(_("Download queue: %1 — tap to open"), n),
+        callback = function() self:navPush{ screen = "queue" } end,
+    }
+end
+
+-- First row for a list view, or nil when there is no queue.
+function ApiKomic:queueMenuItem(entry)
+    if entry.screen == "queue" then return nil end
+    local n = self:queueCount()
+    if n == 0 then return nil end
+    return {
+        text = T(_("Download queue (%1)"), n),
+        mandatory = _("open"),
+        callback = function() self:navPush{ screen = "queue" } end,
+    }
+end
+
+-- The queue changed: update what is on screen.
+function ApiKomic:queueChanged()
+    local top = self:topScreen()
+    if not top then return end
+    local view = self.view
+    if top ~= "queue" and view and view.setBanner then
+        view:setBanner(self:queueBanner({ screen = top }))
+    else
+        self:navRefresh()
+    end
+end
+
+-- chapter: nil for the whole title, or a chapter.
+function ApiKomic:enqueue(source, item, chapter)
+    local entry = Store.addToQueue(source.id, item, chapter and { id = chapter.id, title = chapter.title })
+    if not entry then
+        showMessage(_("Already in the download queue."))
+        return
+    end
+    UIManager:show(InfoMessage:new{
+        text = T(_("Added to the download queue (%1)."), self:queueCount()),
+        timeout = 2,
+    })
+    self:queueChanged()
+end
+
+function ApiKomic:showQueue(entry)
+    local entries = visible(Store.queue())
+    if #entries == 0 then return self:navEmpty(_("The download queue is empty.")) end
+    local items = {
+        {
+            text = _("Start downloading"),
+            mandatory = tostring(#entries),
+            callback = function() self:runQueue() end,
+        },
+        {
+            text = _("Clear the queue"),
+            callback = function()
+                UIManager:show(ConfirmBox:new{
+                    text = _("Remove everything from the download queue?"),
+                    ok_text = _("Clear"),
+                    ok_callback = function()
+                        for __, e in ipairs(entries) do Store.removeFromQueue(e.id) end
+                        self:navRefresh()
+                    end,
+                })
+            end,
+        },
+    }
+    for __, e in ipairs(entries) do
+        local source = Sources.get(e.source)
+        local name = e.chapter_title and (e.item.title .. " – " .. e.chapter_title) or e.item.title
+        local function actions() self:queueEntryActions(e, name) end
+        table.insert(items, {
+            text = name,
+            mandatory = e.error and _("failed") or (source and source.name or e.source),
+            callback = actions,
+            hold_callback = actions,
+        })
+    end
+    self:showMenu(entry, T(_("Download queue (%1)"), #entries), items)
+end
+
+function ApiKomic:queueEntryActions(e, name)
+    local dialog
+    dialog = ButtonDialog:new{
+        title = e.error and (name .. "\n" .. e.error) or name,
+        buttons = {
+            {{ text = _("Move to the top"), callback = function()
+                UIManager:close(dialog)
+                Store.queueToTop(e.id)
+                self:navRefresh()
+            end }},
+            {{ text = _("Remove from the queue"), callback = function()
+                UIManager:close(dialog)
+                Store.removeFromQueue(e.id)
+                self:navRefresh()
+            end }},
+        },
+    }
+    UIManager:show(dialog)
+end
+
+function ApiKomic:runQueue()
+    if queue_running then return showMessage(_("The queue is already downloading.")) end
+    if self:queueCount() == 0 then return end
+    NetworkMgr:runWhenOnline(function()
+        Trapper:wrap(function()
+            queue_running = true
+            local ok, result = pcall(whileAwake, function() return self:processQueue() end)
+            queue_running = false
+            Trapper:clear()
+            if not ok then
+                logger.err("APIKOmic: queue failed:", result)
+                result = tostring(result)
+            end
+            showMessage(result)
+            self:queueChanged()
+        end)
+    end)
+end
+
+-- Downloads the queued titles one after another into the library. A title
+-- that finishes leaves the queue; one with failures stays, marked "failed",
+-- and is tried again next time. Returns a summary. Inside Trapper:wrap.
+function ApiKomic:processQueue()
+    local entries = visible(Store.queue())
+    local saved, skipped, failed, cancelled = 0, 0, {}, false
+    for n, entry in ipairs(entries) do
+        local source = Sources.get(entry.source)
+        local item = entry.item
+        local status = T(_("Queue %1 of %2: %3\n"), n, #entries, item.title)
+        Store.setQueueError(entry.id, nil)
+        local problem
+        if not source then
+            problem = _("This source is not installed any more.")
+        elseif not Trapper:info(status .. _("Loading chapters…")) then
+            cancelled = true
+            break
+        else
+            local ok, chapters, err = pcall(source.getChapters, source, item, sourceOpts())
+            if not ok then chapters, err = nil, tostring(chapters) end
+            if not chapters then
+                problem = err or _("No chapters found.")
+            else
+                local list = {}
+                if entry.chapter_id then
+                    for __, c in ipairs(chapters) do
+                        if c.id == entry.chapter_id then
+                            list = { c }
+                            break
+                        end
+                    end
+                else
+                    list = readingOrder(chapters)
+                end
+                if #list == 0 then problem = _("No chapters found.") end
+                for i, chapter in ipairs(list) do
+                    local label = status .. T(_("Chapter %1 of %2: %3\n"), i, #list, chapter.title)
+                    local result, cerr = self:saveChapter(source, item, chapter, label)
+                    if result == "saved" then
+                        saved = saved + 1
+                    elseif result == "skipped" then
+                        skipped = skipped + 1
+                    elseif cerr then
+                        logger.warn("APIKOmic: queued chapter failed", chapter.id, cerr)
+                        problem = problem or (chapter.title .. ": " .. cerr)
+                    else
+                        cancelled = true
+                        break
+                    end
+                end
+            end
+        end
+        if cancelled then break end
+        if problem then
+            Store.setQueueError(entry.id, problem)
+            table.insert(failed, item.title .. ": " .. problem)
+        else
+            Store.removeFromQueue(entry.id)
+        end
+    end
+    local lines = { cancelled and _("Queue stopped.") or _("Queue finished.") }
+    table.insert(lines, T(_("Saved to library: %1"), saved))
+    if skipped > 0 then table.insert(lines, T(_("Already there: %1"), skipped)) end
+    if #failed > 0 then
+        table.insert(lines, T(_("Failed: %1"), #failed))
+        for i = 1, math.min(3, #failed) do table.insert(lines, "• " .. failed[i]) end
+    end
+    return table.concat(lines, "\n")
 end
 
 function ApiKomic:openComic(path)
@@ -1327,6 +2141,17 @@ function ApiKomic:showSettings(entry)
             end,
         },
         {
+            text = T(_("Parallel page downloads: %1"), tostring(s.parallel_downloads)),
+            callback = function()
+                self:pickChoice(_("Pages downloaded at the same time"), PARALLEL_CHOICES,
+                    s.parallel_downloads, function(id)
+                        s.parallel_downloads = id
+                        Settings.save()
+                        self:navRefresh()
+                    end)
+            end,
+        },
+        {
             text = T(_("Panels+: %1"), choiceText(PANELS_MODES, s.panels_mode)),
             callback = function()
                 self:pickChoice(_("When a comic opens, set Panels+ to"), PANELS_MODES, s.panels_mode, function(id)
@@ -1381,7 +2206,10 @@ ApiKomic.screens = {
     saved = ApiKomic.showSaved,
     bookmarks = ApiKomic.showBookmarks,
     chapters = ApiKomic.showChapters,
-    library = ApiKomic.showComics,
+    library = ApiKomic.showLibrary,
+    collection = ApiKomic.showLibrary,
+    series = ApiKomic.showSeries,
+    queue = ApiKomic.showQueue,
     history = ApiKomic.showComics,
     settings = ApiKomic.showSettings,
 }

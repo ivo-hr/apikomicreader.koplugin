@@ -67,6 +67,8 @@ local Home = InputContainer:extend{
     on_source = nil,     -- function()
     on_tile = nil,       -- function(id)
     on_logo_hold = nil,  -- function(); shows or hides adult content
+    queue_count = 0,     -- downloads waiting; a button shows at the top left when > 0
+    on_queue = nil,      -- function()
     close_callback = nil,
     covers_fullscreen = true,
 }
@@ -126,10 +128,39 @@ function Home:build()
         callback = function() self:onClose() end,
         show_parent = self,
     }
-    local top = RightContainer:new{
-        dimen = Geom:new{ w = w, h = close:getSize().h },
-        HorizontalGroup:new{ close, HorizontalSpan:new{ width = pad } },
-    }
+    local top
+    if (self.queue_count or 0) > 0 and self.on_queue then
+        local queue_text = TextWidget:new{
+            text = T(_("Queue: %1"), self.queue_count),
+            face = Font:getFace("cfont", 18),
+        }
+        local queue_h = queue_text:getSize().h + 2 * Size.padding.default
+        local queue_button = Tappable:new{
+            on_tap = self.on_queue,
+            FrameContainer:new{
+                radius = math.floor(queue_h / 2),
+                bordersize = border,
+                padding = Size.padding.default,
+                padding_left = pad,
+                padding_right = pad,
+                queue_text,
+            },
+        }
+        local spacer = math.max(0, w - 2 * pad - queue_button:getSize().w - close:getSize().w)
+        top = HorizontalGroup:new{
+            align = "center",
+            HorizontalSpan:new{ width = pad },
+            queue_button,
+            HorizontalSpan:new{ width = spacer },
+            close,
+            HorizontalSpan:new{ width = pad },
+        }
+    else
+        top = RightContainer:new{
+            dimen = Geom:new{ w = w, h = close:getSize().h },
+            HorizontalGroup:new{ close, HorizontalSpan:new{ width = pad } },
+        }
+    end
 
     -- Logo and name.
     local logo_h = math.floor(h * (landscape and 0.17 or 0.15))

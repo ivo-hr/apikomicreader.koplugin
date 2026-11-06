@@ -150,4 +150,172 @@ function Store.removeBookmark(source_id, id)
     put("bookmarks", list)
 end
 
+-- Chapter metadata --------------------------------------------------------------
+-- Which title a downloaded chapter belongs to, so the library can group them.
+-- Key: "<source>_<chapter id>". Value: { series = "title", number = 12 }.
+
+function Store.setChapterMeta(key, series, number)
+    local map = get("chapter_meta")
+    map[key] = { series = series, number = number }
+    put("chapter_meta", map)
+end
+
+function Store.chapterMeta(key)
+    return get("chapter_meta")[key]
+end
+
+function Store.removeChapterMeta(key)
+    local map = get("chapter_meta")
+    if map[key] == nil then return end
+    map[key] = nil
+    put("chapter_meta", map)
+end
+
+-- Collections -------------------------------------------------------------------
+-- Named groups of library titles, made by the user. Entries:
+-- { source = id, id = "...", name = "...", members = { "<title key>", ... } }
+
+local function newId()
+    return string.format("%d%04d", os.time(), math.random(0, 9999))
+end
+
+function Store.collections(source_id)
+    return ofSource(get("collections"), source_id)
+end
+
+function Store.collection(source_id, id)
+    for __, c in ipairs(get("collections")) do
+        if c.source == source_id and c.id == id then return c end
+    end
+end
+
+function Store.addCollection(source_id, name)
+    local list = get("collections")
+    local entry = { source = source_id, id = newId(), name = name, members = {} }
+    table.insert(list, entry)
+    put("collections", list)
+    return entry
+end
+
+function Store.renameCollection(id, name)
+    local list = get("collections")
+    for __, c in ipairs(list) do
+        if c.id == id then c.name = name end
+    end
+    put("collections", list)
+end
+
+function Store.deleteCollection(id)
+    local list = get("collections")
+    for i = #list, 1, -1 do
+        if list[i].id == id then table.remove(list, i) end
+    end
+    put("collections", list)
+end
+
+function Store.inCollection(collection, key)
+    for __, k in ipairs(collection.members) do
+        if k == key then return true end
+    end
+    return false
+end
+
+function Store.collectionAdd(id, key)
+    local list = get("collections")
+    for __, c in ipairs(list) do
+        if c.id == id and not Store.inCollection(c, key) then table.insert(c.members, key) end
+    end
+    put("collections", list)
+end
+
+function Store.collectionRemove(id, key)
+    local list = get("collections")
+    for __, c in ipairs(list) do
+        if c.id == id then
+            for i = #c.members, 1, -1 do
+                if c.members[i] == key then table.remove(c.members, i) end
+            end
+        end
+    end
+    put("collections", list)
+end
+
+-- Download queue ----------------------------------------------------------------
+-- Titles, or single chapters, waiting to be downloaded to the library, oldest
+-- first. Entries: { id, source, item = { id, title, subtitle, thumb, adult },
+-- chapter_id (nil = every chapter), chapter_title, error, time }.
+
+function Store.queue()
+    return get("queue")
+end
+
+-- True if the whole title is queued, or (when chapter_id is given) that chapter.
+function Store.isQueued(source_id, item_id, chapter_id)
+    for __, e in ipairs(get("queue")) do
+        if e.source == source_id and e.item.id == item_id then
+            if e.chapter_id == nil then return true end
+            if chapter_id ~= nil and e.chapter_id == chapter_id then return true end
+        end
+    end
+    return false
+end
+
+-- chapter: nil for the whole title, or { id, title }. Returns the new entry,
+-- or nil if it is already queued.
+function Store.addToQueue(source_id, item, chapter)
+    if Store.isQueued(source_id, item.id, chapter and chapter.id) then return nil end
+    local list = get("queue")
+    if not chapter then
+        -- The whole title covers any of its chapters queued before.
+        for i = #list, 1, -1 do
+            if list[i].source == source_id and list[i].item.id == item.id then table.remove(list, i) end
+        end
+    end
+    local entry = {
+        id = newId(),
+        source = source_id,
+        item = {
+            id = item.id,
+            title = item.title,
+            subtitle = item.subtitle,
+            thumb = item.thumb,
+            adult = item.adult or false,
+        },
+        chapter_id = chapter and chapter.id or nil,
+        chapter_title = chapter and chapter.title or nil,
+        time = os.time(),
+    }
+    table.insert(list, entry)
+    put("queue", list)
+    return entry
+end
+
+function Store.removeFromQueue(id)
+    local list = get("queue")
+    for i = #list, 1, -1 do
+        if list[i].id == id then table.remove(list, i) end
+    end
+    put("queue", list)
+end
+
+function Store.setQueueError(id, err)
+    local list = get("queue")
+    for __, e in ipairs(list) do
+        if e.id == id then e.error = err end
+    end
+    put("queue", list)
+end
+
+function Store.queueToTop(id)
+    local list = get("queue")
+    for i, e in ipairs(list) do
+        if e.id == id then
+            table.remove(list, i)
+            table.insert(list, 1, e)
+            break
+        end
+    end
+    put("queue", list)
+end
+
 return Store

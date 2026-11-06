@@ -56,6 +56,43 @@ function Comics.find(dir, key)
     end
 end
 
+local READ_AT = 0.97  -- this far through counts as read
+local progress_cache = {}  -- path -> { mtime = progress file time, result = {...} }
+
+-- Reading state of a comic, from the progress KOReader keeps next to it:
+-- { status = "unread" | "reading" | "read", percent = 0..1, last_read = time }.
+-- Comics never opened have no progress file, so this is cheap for them.
+function Comics.progress(path)
+    local DocSettings = require("docsettings")
+    local sidecar
+    pcall(function()
+        if DocSettings.getSidecarFile then
+            sidecar = DocSettings:getSidecarFile(path)
+        elseif DocSettings.hasSidecarFile then
+            sidecar = DocSettings:hasSidecarFile(path)
+        end
+    end)
+    if not sidecar then return { status = "unread", percent = 0, last_read = 0 } end
+    local mtime = type(sidecar) == "string" and lfs.attributes(sidecar, "modification") or nil
+    local cached = progress_cache[path]
+    if mtime and cached and cached.mtime == mtime then return cached.result end
+    local result = { status = "unread", percent = 0, last_read = mtime or 0 }
+    local ok, settings = pcall(DocSettings.open, DocSettings, path)
+    if ok and settings then
+        local percent = tonumber(settings:readSetting("percent_finished")) or 0
+        local summary = settings:readSetting("summary")
+        local complete = type(summary) == "table" and summary.status == "complete"
+        result.percent = percent
+        if complete or percent >= READ_AT then
+            result.status = "read"
+        elseif percent > 0 then
+            result.status = "reading"
+        end
+    end
+    if mtime then progress_cache[path] = { mtime = mtime, result = result } end
+    return result
+end
+
 -- Removes our comics from KOReader's own reading history and "last file", so
 -- their titles don't show up outside the plugin.
 function Comics.forget(path)
@@ -71,6 +108,10 @@ end
 
 function Comics.delete(path)
     os.remove(path)
+    local source_id, id = Comics.parseName(path:match("([^/]+)$") or "")
+    if source_id then
+        pcall(function() require("apiko.store").removeChapterMeta(source_id .. "_" .. id) end)
+    end
     local sdr = sidecar(path)
     if lfs.attributes(sdr, "mode") == "directory" then
         pcall(ffiUtil.purgeDir, sdr)

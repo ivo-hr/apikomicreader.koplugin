@@ -17,6 +17,11 @@ local DEFAULTS = {
     cache_keep = 20,
     -- "grid", "list_icons" or "list".
     view_mode = "grid",
+    -- Order of the library (see Library.GROUP_SORTS) and of the chapters of a title.
+    library_sort = "recent",
+    chapter_sort = "order",
+    -- Pages fetched at the same time while downloading a chapter (1 = one by one).
+    parallel_downloads = 3,
     -- What to set Panels+ to when one of our comics opens: "manga", "comic" or "off".
     panels_mode = "manga",
     -- pin_hash: set when a parental-controls PIN is configured.

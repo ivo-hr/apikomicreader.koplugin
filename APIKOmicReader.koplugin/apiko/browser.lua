@@ -161,6 +161,39 @@ function Cell:onHold()
     return true
 end
 
+-- A slim, tappable strip under the title bar.
+local Banner = InputContainer:extend{
+    width = 0,
+    text = "",
+    callback = nil,
+}
+
+function Banner:init()
+    local h = Screen:scaleBySize(38)
+    self.dimen = Geom:new{ w = self.width, h = h }
+    self.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = self.dimen } } }
+    self[1] = FrameContainer:new{
+        width = self.width,
+        height = h,
+        padding = 0,
+        bordersize = 0,
+        background = Blitbuffer.COLOR_LIGHT_GRAY,
+        CenterContainer:new{
+            dimen = Geom:new{ w = self.width, h = h },
+            TextWidget:new{
+                text = self.text,
+                face = Font:getFace("cfont", 17),
+                max_width = self.width - 2 * Size.padding.large,
+            },
+        },
+    }
+end
+
+function Banner:onTap()
+    if self.callback then self.callback() end
+    return true
+end
+
 local Browser = InputContainer:extend{
     title = "",
     mode = "grid",      -- "grid" or "list_icons"
@@ -172,6 +205,8 @@ local Browser = InputContainer:extend{
     on_tap = nil,       -- function(item)
     on_hold = nil,      -- function(item)
     on_back = nil,      -- function(); shows a back arrow when set
+    banner = nil,       -- { text = ..., callback = function() }: strip under the title bar
+    footer_buttons = nil, -- { { text = ..., callback = function() }, ... } left of the page arrows
     start_page = nil,
     close_callback = nil,
     covers_fullscreen = true,
@@ -227,9 +262,22 @@ function Browser:buildFooter()
     }
     local gap = HorizontalSpan:new{ width = Screen:scaleBySize(32) }
     local h = math.max(prev:getSize().h, label:getSize().h)
+    local group = HorizontalGroup:new{ align = "center" }
+    for __, b in ipairs(self.footer_buttons or {}) do
+        local button = Button:new{
+            text = b.text,
+            bordersize = 0,
+            callback = b.callback,
+            show_parent = self,
+        }
+        table.insert(group, button)
+        table.insert(group, gap)
+        h = math.max(h, button:getSize().h)
+    end
+    for __, w in ipairs{ prev, gap, label, gap, next_page } do table.insert(group, w) end
     return CenterContainer:new{
         dimen = Geom:new{ w = self.width, h = h },
-        HorizontalGroup:new{ align = "center", prev, gap, label, gap, next_page },
+        group,
     }
 end
 
@@ -248,7 +296,13 @@ function Browser:update()
         show_parent = self,
     }
     local footer = self:buildFooter()
+    local banner = self.banner and Banner:new{
+        width = self.width,
+        text = self.banner.text,
+        callback = self.banner.callback,
+    }
     local grid_h = self.height - title_bar:getSize().h - footer:getSize().h
+        - (banner and banner:getSize().h or 0)
     local cell_w = math.floor(self.width / self.cols)
     local cell_h = math.floor(grid_h / self.rows)
 
@@ -270,16 +324,27 @@ function Browser:update()
     -- Keep the footer at the bottom on a partly filled last page.
     local filler = VerticalSpan:new{ width = math.max(0, grid_h - grid:getSize().h) }
 
+    local content = VerticalGroup:new{ align = "left", title_bar }
+    if banner then table.insert(content, banner) end
+    table.insert(content, grid)
+    table.insert(content, filler)
+    table.insert(content, footer)
     self[1] = FrameContainer:new{
         width = self.width,
         height = self.height,
         padding = 0,
         bordersize = 0,
         background = Blitbuffer.COLOR_WHITE,
-        VerticalGroup:new{ align = "left", title_bar, grid, filler, footer },
+        content,
     }
     UIManager:setDirty(self, "ui")
     self:loadThumbs()
+end
+
+-- Shows, changes or (nil) removes the strip under the title bar.
+function Browser:setBanner(banner)
+    self.banner = banner
+    self:update()
 end
 
 function Browser:loadThumbs()

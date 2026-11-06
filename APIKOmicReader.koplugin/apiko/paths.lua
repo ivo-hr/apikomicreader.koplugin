@@ -19,6 +19,11 @@ function Paths.sourceDir(source_id)
     return ensure(Paths.root() .. "/" .. source_id)
 end
 
+-- Scratch space for pages being downloaded.
+function Paths.tmp()
+    return ensure(Paths.root() .. "/tmp")
+end
+
 -- Downloaded for reading; the oldest are deleted automatically.
 function Paths.history(source_id)
     return ensure(Paths.sourceDir(source_id) .. "/history")
