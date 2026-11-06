@@ -45,16 +45,9 @@ function Paths.asset(name)
     return Paths.pluginDir() .. "/assets/" .. name
 end
 
--- Copies the app icon into KOReader's user icons folder, where launchers such
--- as ZenOS offer it in their icon picker and KOReader finds it by name
--- ("apikomicreader"). Only writes when the icon is missing or changed.
-function Paths.installIcon()
-    local src = Paths.asset("apikomicreader.png")
-    local dir = DataStorage:getDataDir() .. "/icons"
-    local dest = dir .. "/apikomicreader.png"
+local function copyIfChanged(src, dest)
     local size = lfs.attributes(src, "size")
     if not size or lfs.attributes(dest, "size") == size then return end
-    ensure(dir)
     local fin = io.open(src, "rb")
     if not fin then return end
     local data = fin:read("*a")
@@ -63,6 +56,17 @@ function Paths.installIcon()
     if not fout then return end
     fout:write(data)
     fout:close()
+end
+
+-- Copies the app icon into KOReader's user icons folder, where launchers such
+-- as ZenOS offer it in their icon picker and KOReader finds it by name
+-- ("apikomicreader"). The SVG is preferred where supported (it stays sharp
+-- at any size); the PNG is the fallback. Only writes missing or changed files.
+function Paths.installIcon()
+    local dir = ensure(DataStorage:getDataDir() .. "/icons")
+    for __, name in ipairs{ "apikomicreader.svg", "apikomicreader.png" } do
+        copyIfChanged(Paths.asset(name), dir .. "/" .. name)
+    end
 end
 
 return Paths
