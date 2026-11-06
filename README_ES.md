@@ -67,7 +67,7 @@ Los menús del plugin están en inglés, así que te pongo entre comillas cómo 
 - "Library": los cómics que has decidido quedarte, agrupados por título.
 - "History": lo último que has leído.
 - "Settings": los ajustes.
-- "Queue": cuando tienes descargas esperando, sale un botón "Queue" arriba a la izquierda (mira [Cola de descargas](#cola-de-descargas)).
+- "Queue": cuando tienes descargas esperando, sale un botón "Queue" En la esquina superior izquierda (mira [Cola de descargas](#cola-de-descargas)).
 
 Arriba a la izquierda de cada pantalla hay una flecha para volver, y una X para cerrar el plugin. Cuando cierras un cómic vuelves justo donde estabas.
 
