@@ -115,6 +115,8 @@ Las **colecciones** son tus propios grupos de títulos ("Leyendo ahora", "Superh
 - Mantén el dedo sobre una colección para renombrarla o borrarla. Borrar una colección nunca borra los cómics que tiene dentro.
 - Dentro de una colección, mantén el dedo sobre un título y elige "Remove from this collection".
 
+**Colecciones de KOReader.** Normalmente tus cómics solo salen dentro del plugin. Para tenerlos también en las colecciones del propio KOReader (Favoritos y las de su explorador de archivos), mantén el dedo sobre un cómic, un título o una colección en la "Library" y dale a "KOReader collections...". Toca una colección para meterlos (✓ quiere decir que ya están, tócala otra vez para sacarlos), o crea una nueva. Si lo haces sobre una colección, se meten todos los capítulos de todos sus títulos. Los cómics que borres salen solos de las colecciones de KOReader. Los cómics para adultos siguen pidiendo el PIN si los abres desde ahí. Hace falta KOReader 2024.04 o más nuevo.
+
 **Orden:** toca el botón "Sort" de abajo (o la primera fila en la lista simple).
 
 | Biblioteca | Capítulos de un título |
@@ -189,7 +191,7 @@ Prueba primero "Settings" > "Test connection". Si sigue chungo, échale un ojo a
 Cada web es un archivo en `APIKOmicReader.koplugin/apiko/sources/`. Todo lo que metas en esa carpeta se carga solo al arrancar KOReader.
 
 1. Copia `apiko/sources/_template.lua` y ponle otro nombre, en plan `miweb.lua`.
-2. Rellénalo. La plantilla explica cada parte y trae un ejemplo. `mangadex.lua` (manga con capítulos) y `nhentai.lua` (cómics sueltos) son de verdad, por si quieres cotillearlos.
+2. Rellénalo. No hace falta saber programar: solo pones el nombre de la web, las direcciones de su API y los nombres de unos pocos campos, y la plantilla explica cómo encontrar cada uno. `mangadex.lua` (manga con capítulos) y `nhentai.lua` (cómics sueltos) son de verdad, por si quieres cotillearlos.
 3. Copia el plugin al lector y reinicia KOReader.
 
 La búsqueda, las portadas, las descargas (también en paralelo), la cola, el historial, la biblioteca, las colecciones, los marcadores y el control parental funcionan con la web nueva sin tocar nada más. Si tu web da un `number` a los capítulos, "Download a range" y el orden de capítulos de la biblioteca lo usan. Si el archivo de una web tiene algún fallo, simplemente se salta y el motivo queda en `crash.log` (busca `skipping source`). Los archivos que empiezan por `_` se ignoran.
@@ -209,6 +211,7 @@ APIKOmicReader.koplugin/        El plugin, va en koreader/plugins/
   apiko/comics.lua              Cómics descargados y su progreso de lectura
   apiko/library.lua             Agrupa la biblioteca por título y la ordena
   apiko/store.lua               Marcadores, búsquedas, colecciones y cola de descargas
+  apiko/kocollections.lua       Mete cómics en las colecciones del propio KOReader
   apiko/paths.lua               Dónde va cada cosa
   apiko/http.lua                Habla con las webs
   apiko/settings.lua            Ajustes

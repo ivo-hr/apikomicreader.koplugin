@@ -21,6 +21,7 @@ local Browser = require("apiko.browser")
 local Home = require("apiko.home")
 local Comics = require("apiko.comics")
 local Http = require("apiko.http")
+local KoCollections = require("apiko.kocollections")
 local Library = require("apiko.library")
 local Paths = require("apiko.paths")
 local Settings = require("apiko.settings")
@@ -1078,6 +1079,54 @@ function ApiKomic:pickCollection(source, key, name)
     UIManager:show(dialog)
 end
 
+-- Same, for KOReader's own collections (the ones in its file manager), with
+-- the comic files at paths: tap a collection to add them to it, or take them
+-- out (✓ = all of them are in it, – = some are).
+-- new_name: suggested name for a new collection.
+function ApiKomic:pickKoCollection(title, paths, new_name)
+    if not KoCollections.available() then
+        return showMessage(_("This version of KOReader has no collections. Update KOReader to use them."))
+    end
+    if #paths == 0 then return showMessage(_("There are no comics to add.")) end
+    local dialog
+    local rows = {}
+    for __, c in ipairs(KoCollections.list()) do
+        local n = KoCollections.count(c.name, paths)
+        local all = n == #paths
+        table.insert(rows, {{
+            text = (all and "✓ " or n > 0 and "– " or "") .. c.text,
+            callback = function()
+                UIManager:close(dialog)
+                if all then
+                    KoCollections.remove(c.name, paths)
+                    showMessage(T(_("Removed from \"%1\"."), c.text))
+                else
+                    KoCollections.add(c.name, paths)
+                    showMessage(T(_("Added to \"%1\"."), c.text))
+                end
+            end,
+        }})
+    end
+    table.insert(rows, {{
+        text = _("New KOReader collection…"),
+        callback = function()
+            UIManager:close(dialog)
+            self:askName(_("New KOReader collection"), new_name or "", function(name)
+                KoCollections.add(name, paths)
+                showMessage(T(_("Added to \"%1\"."), name))
+            end)
+        end,
+    }})
+    dialog = ButtonDialog:new{ title = T(_("KOReader collections for \"%1\""), title), buttons = rows }
+    UIManager:show(dialog)
+end
+
+local function pathsOf(comics)
+    local paths = {}
+    for __, c in ipairs(comics) do table.insert(paths, c.path) end
+    return paths
+end
+
 local function statusText(c)
     if c.status == "read" then return _("Read") end
     if c.status == "reading" then return string.format("%d%%", math.floor((c.percent or 0) * 100)) end
@@ -1285,6 +1334,10 @@ function ApiKomic:seriesActions(source, key, name, comics, collection_id)
             UIManager:close(dialog)
             self:pickCollection(source, key, name)
         end }},
+        {{ text = _("KOReader collections…"), callback = function()
+            UIManager:close(dialog)
+            self:pickKoCollection(name, pathsOf(comics), name)
+        end }},
     }
     if collection_id then
         table.insert(rows, {{ text = _("Remove from this collection"), callback = function()
@@ -1319,6 +1372,19 @@ function ApiKomic:collectionActions(source, collection)
                     Store.renameCollection(collection.id, name)
                     self:navRefresh()
                 end)
+            end }},
+            -- Every chapter of every title in the collection.
+            {{ text = _("KOReader collections…"), callback = function()
+                UIManager:close(dialog)
+                local members = {}
+                for __, k in ipairs(collection.members) do members[k] = true end
+                local paths = {}
+                for __, g in ipairs(libraryGroups(source)) do
+                    if members[g.key] then
+                        for __, p in ipairs(pathsOf(g.comics)) do table.insert(paths, p) end
+                    end
+                end
+                self:pickKoCollection(collection.name, paths, collection.name)
             end }},
             {{ text = _("Delete collection"), callback = function()
                 UIManager:close(dialog)
@@ -1358,6 +1424,13 @@ function ApiKomic:comicActions(source, item, in_library, collection_id)
             callback = function()
                 UIManager:close(dialog)
                 self:pickCollection(source, key, name)
+            end,
+        }})
+        table.insert(rows, {{
+            text = _("KOReader collections…"),
+            callback = function()
+                UIManager:close(dialog)
+                self:pickKoCollection((item.title:gsub("^✓ ", "")), { item.path }, name)
             end,
         }})
         if collection_id then

@@ -115,6 +115,8 @@ Each chapter shows whether it's unread, half-read (with a percentage) or read (â
 - Hold a collection to rename or delete it. Deleting a collection never deletes the comics inside it.
 - Inside a collection, hold a title and pick "Remove from this collection".
 
+**KOReader collections.** Your comics normally only show up inside the plugin. To also have them in KOReader's own collections (Favorites and the ones in its file browser), hold a comic, a title or a collection in the Library and tap "KOReader collections...". Tap a collection to add them (âœ“ means they're already in it, tap again to take them out), or make a new one. Holding a collection adds every chapter of every title in it. Deleted comics leave KOReader's collections by themselves. Adult comics still ask for the PIN when opened from there. Needs KOReader 2024.04 or newer.
+
 **Sorting:** tap the Sort button at the bottom (or the first row in the simple list view).
 
 | Library | Chapters of a title |
@@ -189,7 +191,7 @@ Try Settings > Test connection first. If that doesn't help, look in `koreader/cr
 Every site is one file in `APIKOmicReader.koplugin/apiko/sources/`. Whatever is in that folder gets loaded when KOReader starts.
 
 1. Copy `apiko/sources/_template.lua` and give it a new name, like `mysite.lua`.
-2. Fill it in. The template explains each part and has an example. `mangadex.lua` (manga with chapters) and `nhentai.lua` (single comics) are real ones you can look at.
+2. Fill it in. You don't need to know how to program: you only fill in the site's name, its API addresses and the names of a few fields, and the template explains how to find each one. `mangadex.lua` (manga with chapters) and `nhentai.lua` (single comics) are real ones you can look at.
 3. Copy the plugin to the device and restart KOReader.
 
 Search, covers, downloads (parallel too), the queue, history, library, collections, bookmarks and the parental controls all work for the new site without changing anything else. If your site gives chapters a `number`, "Download a range" and the library's chapter order use it. If a site file has a mistake it just gets skipped and the reason goes in `crash.log` (search for `skipping source`). Files starting with `_` are ignored.
@@ -209,6 +211,7 @@ APIKOmicReader.koplugin/        The plugin, goes in koreader/plugins/
   apiko/comics.lua              Downloaded comics and their reading progress
   apiko/library.lua             Groups the library by title and sorts it
   apiko/store.lua               Bookmarks, searches, collections and the download queue
+  apiko/kocollections.lua       Adds comics to KOReader's own collections
   apiko/paths.lua               Where files go
   apiko/http.lua                Talks to the sites
   apiko/settings.lua            Settings

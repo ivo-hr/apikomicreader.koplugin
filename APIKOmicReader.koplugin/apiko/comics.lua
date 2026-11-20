@@ -6,6 +6,7 @@ local ffiUtil = require("ffi/util")
 local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
 
+local KoCollections = require("apiko.kocollections")
 local Paths = require("apiko.paths")
 
 local Comics = {}
@@ -108,6 +109,7 @@ end
 
 function Comics.delete(path)
     os.remove(path)
+    KoCollections.forget(path)
     local source_id, id = Comics.parseName(path:match("([^/]+)$") or "")
     if source_id then
         pcall(function() require("apiko.store").removeChapterMeta(source_id .. "_" .. id) end)
@@ -129,6 +131,7 @@ function Comics.move(path, dir)
     end
     local sdr = sidecar(path)
     if lfs.attributes(sdr, "mode") == "directory" then os.rename(sdr, sidecar(dest)) end
+    KoCollections.moved(path, dest)
     Comics.forget(path)
     return dest
 end
