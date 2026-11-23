@@ -9,7 +9,7 @@ People keep asking me for more sites, so here's every one I've looked at and whe
 Also keep in mind:
 - **Image formats:** KOReader can show JPG, PNG, GIF and WebP. It can't show AVIF*, so sites using it are a pain. The plugin warns you before downloading those.
 - **Cloudflare:** if the API sits behind a Cloudflare check, it can't be used.
-- **Not tested yet:** except for the sites already in the plugin and Atsumaru, I got everything below from reading the code of [Aidoku's sources](https://github.com/Aidoku-Community/sources), not by trying the APIs myself. So a "Candidate" might turn out not to work once I test it.
+- **Not tested yet:** except for the sites already in the plugin (✅ and 🧪), I got everything below from reading the code of [Aidoku's sources](https://github.com/Aidoku-Community/sources), not by trying the APIs myself. So a "Candidate" might turn out not to work once I test it.
 
 ✅ In the plugin · 🧪 Added, not tested on a device yet · 🟢 Candidate · 🔑 Login support needed · 🟡 Eh, if you ask enough... · ❌ Out of scope
 
@@ -21,13 +21,13 @@ Also keep in mind:
 | Atsumaru (atsu.moe) | Big English manga/manhwa site | ✅ | The website has Cloudflare, but the API doesn't. Chapters uploaded since mid-2026 are mostly AVIF, though older ones (and sometimes another group's upload of the same chapter) are WebP. |
 | EZManga / QiScans | English manhwa (two sites, one API) | 🟢 | Simple JSON API (`vapi.ezmanga.org`). One port covers both. |
 | MangaK / Toontop | English manhwa, lots of adult stuff (two sites, one API) | 🟢 | Simple JSON API (`api.mangak.io`). One port covers both. |
-| Chikari | English manga and novels | 🟢 | Simple JSON API. The novels have to be filtered out. |
+| Chikari | English manga and novels | ✅ | Simple JSON API, WebP images. The novels are on a separate API, so they never show up. Images are on two hosts; if one is blocked, the other is used. |
 | Stonescape | Small English scanlation site | 🟡 | Simple JSON API. |
 | Guya / Danke.moe | Small scanlation-group sites | 🟡 | Simple JSON API. |
 | Cubari | Reader for manga hosted on imgur, gist, etc. | 🟡 | Simple JSON API, but it's for opening links, not browsing. |
 | BigSolo | French manga | 🟡 | Simple JSON API. |
 | FMTeam | French scanlation group | 🟡 | Simple JSON API (PizzaReader). Other PizzaReader sites would work too. |
-| ManhwaWeb | Spanish manhwa | 🟢 | Simple JSON API. Need to check whether its images are AVIF. |
+| ManhwaWeb | Spanish manhwa | ✅ | Simple JSON API, WebP images. No "Popular" sort: the site's top list doesn't say which titles are adult. |
 | Olympus Scanlation | Spanish manhwa | 🟡 | Simple JSON API, but the domain keeps changing. |
 | Senmanga | Japanese raws | 🟢 | Simple JSON API. |
 | CManga | Vietnamese manga | 🟡 | Simple JSON API, but the domain keeps changing. |

@@ -13,6 +13,14 @@
 
 ## Novedades
 
+**v.1.1.6-2** (23-11-2026)
+- Chikari: mazo de manga, manhwa y manhua, en inglés.
+- ManhwaWeb: mazo de manhwa, manga y manhua, en español.
+- Los ajustes enseñan la versión del plugin. Tócala para ver el historial de cambios.
+
+<details>
+<summary>Versiones anteriores</summary>
+
 **v.1.1.6** (23-11-2026)
 - Atsumaru (sin soporte para AVIF, mira [Páginas que KOReader no puede mostrar](#páginas-que-koreader-no-puede-mostrar)).
 - Aviso antes de descargar páginas que KOReader no puede mostrar (AVIF, HEIC, JPEG XL).
@@ -20,9 +28,6 @@
 - Mete cómics en las colecciones del propio KOReader.
 - El aviso de contenido adulto pasa a ser una franja arriba.
 - `_template.lua` más fácil, y [potential_sources.md](potential_sources.md).
-
-<details>
-<summary>Versiones anteriores</summary>
 
 **v.1.1.3** (06-11-2026)
 - Cola de descargas, descargas en paralelo, no se duerme mientras descarga.
@@ -53,6 +58,8 @@ Quería leer cómics y manga en el Kindle sin tener que descargarlos en el PC y 
 | --- | --- |
 | MangaDex | Mucho manga, en un montón de idiomas. |
 | Atsumaru | Mazo de manga y manhwa, en inglés. Muchos capítulos nuevos solo vienen en imágenes AVIF, que KOReader aún no sabe mostrar (mira [Páginas que KOReader no puede mostrar](#páginas-que-koreader-no-puede-mostrar)). |
+| Chikari | Mucho  manga, manhwa y manhua, en inglés. La web también tiene novelas, pero esas aquí no salen. |
+| ManhwaWeb | Mazo de manhwa, manga y manhua, en ESPAÑOL (VAMOOOS). Los títulos para adultos se ocultan salvo que actives el contenido adulto. No hay orden por "Popular", porque la lista de populares de la web no dice qué títulos son para adultos. |
 | Internet Archive | Cómics occidentales que la peña ha subido a archive.org, desde clásicos de la Edad de Oro hasta colecciones de Marvel y DC. Solo salen las subidas que tienen archivos de cómic de verdad (CBZ/CBR), así que te ahorras casi toda la morralla. |
 | nhentai | Cómics para adultos (+18). Ocultos salvo que actives el contenido adulto. |
 
@@ -200,6 +207,7 @@ Si usas el lanzador [ZenOS](https://github.com/xZenLabs/zen-os), el plugin trae 
 | "Parental controls PIN" | Poner, cambiar o quitar el PIN. |
 | "Test connection" | Comprueba que la web actual va. |
 | "Clear history" | Borra los cómics de "History". Tu "Library" se queda. |
+| "Version" | La versión del plugin. Tócala para ver qué hay de nuevo (en inglés). |
 
 El orden de la "Library" y el de los capítulos se cambian con el botón "Sort", no desde aquí.
 
@@ -249,6 +257,8 @@ tools/setup.ps1                 Lo que ejecuta el instalador
 docs/                           Las imágenes de este README
 potential_sources.md            Webs que se podrían añadir (o no), y por qué
 APIKOmicReader.koplugin/        El plugin, va en koreader/plugins/
+  _meta.lua                     Nombre y versión del plugin
+  CHANGELOG.md                  Historial de cambios (en inglés), se ve desde Ajustes > "Version"
   main.lua                      Pantallas, navegación, descargas, cola, control parental
   apiko/home.lua                Pantalla de inicio
   apiko/browser.lua             Vistas de cuadrícula y lista con portadas

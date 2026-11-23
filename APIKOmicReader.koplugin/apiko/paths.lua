@@ -45,6 +45,22 @@ function Paths.pluginDir()
     return dir ~= "" and dir or "."
 end
 
+-- The plugin version, from the "version" field in _meta.lua (or nil).
+function Paths.version()
+    local ok, meta = pcall(dofile, Paths.pluginDir() .. "/_meta.lua")
+    return ok and type(meta) == "table" and type(meta.version) == "string" and meta.version or nil
+end
+
+-- The text of CHANGELOG.md in the plugin folder (or nil).
+function Paths.changelog()
+    local f = io.open(Paths.pluginDir() .. "/CHANGELOG.md", "rb")
+    if not f then return nil end
+    local text = f:read("*a")
+    f:close()
+    text = text:gsub("\r", ""):match("^%s*(.-)%s*$")
+    return text ~= "" and text or nil
+end
+
 -- A file shipped in the plugin's assets folder.
 function Paths.asset(name)
     return Paths.pluginDir() .. "/assets/" .. name

@@ -2406,6 +2406,17 @@ function ApiKomic:showSettings(entry)
             end,
         })
     end
+    -- Every row needs a callback: Menu closes itself on a tap, and only
+    -- callbacks wrapped by wrapItems keep the plugin open.
+    table.insert(items, {
+        text = T(_("Version: %1"), Paths.version() or _("unknown")),
+        callback = function()
+            UIManager:show(TextViewer:new{
+                title = _("Changelog"),
+                text = Paths.changelog() or _("No changelog found in the plugin folder."),
+            })
+        end,
+    })
     self:showMenu(entry, _("Settings"), items)
 end
 
