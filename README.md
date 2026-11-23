@@ -36,7 +36,7 @@ A couple of things about the Internet Archive: it's whatever people upload, so q
 >
 > It is locked away by default, so unless you go looking for it (you degen) you won't even know it's there. You can also just delete `APIKOmicReader.koplugin/apiko/sources/nhentai.lua` if you dont want this depravity on your device.
 
-A few things about Atsumaru: the website itself is behind Cloudflare, but its API isn't, so it works fine from the plugin. A chapter often has uploads from several groups, so if one is AVIF, look for the same chapter number in the list, because another upload might be WebP (which works).
+A thing about Atsumaru: a chapter often has uploads from several groups, so if one is AVIF, look for the same chapter number in the list, because another upload might be WebP (which works).
 
 **Want another site?** Check [potential_sources.md](potential_sources.md). It's every site I've looked at (and that people have asked for), which ones can be added and why the rest can't. Short version: the site needs a simple open API, so no scraping, cookies or weird tricks. You can also add sites yourself, see [For tinkerers](#for-tinkerers).
 
