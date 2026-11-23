@@ -178,7 +178,10 @@ local PAGE_IMAGE_START = ""
   Source:getPages and, optionally, Source:describe. You can replace any of
   them with your own code for sites that don't fit the simple settings
   above. Each receives `opts` with opts.adult, opts.language and
-  opts.data_saver. See mangadex.lua for a full hand-written example.)
+  opts.data_saver. See mangadex.lua for a full hand-written example.
+  A page may set `ext` ("jpg", "avif"...); otherwise the URL's extension is
+  used. Formats KOReader can't display (AVIF, HEIC, JPEG XL) get a warning
+  before downloading; Source.unsupported_hint adds a line to it.)
 =============================================================================
 --]]
 

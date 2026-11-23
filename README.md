@@ -25,17 +25,20 @@ I wanted to read comics and manga on my Kindle without downloading stuff on my P
 | Site | What's there |
 | --- | --- |
 | MangaDex | Loads of manga, in lots of languages. |
+| Atsumaru | Loads of manga and manhwa, in English. New, still being tested. Lots of newer chapters only come as AVIF images, which KOReader can't show yet (see [Pages KOReader can't show](#pages-koreader-cant-show)). |
 | Internet Archive | Western comics people have uploaded to archive.org, from Golden Age classics to Marvel and DC runs. Only uploads that contain actual comic files (CBZ/CBR) show up, so you skip most of the junk. |
 | nhentai | Adult (18+) comics. Hidden unless you turn adult content on. |
 
 A couple of things about the Internet Archive: it's whatever people upload, so quality and naming vary a lot. Sorting by "Most downloaded" (the default) helps. Uploads often contain a whole run, so you get one chapter per issue. It has no age ratings, so the adult content filter can't hide anything there, and pages always come in original quality. You can also paste an archive.org link in the search box to open that upload directly.
 
-> **About that third one** 👀
+> **About that last one** 👀
 > Yes, I know. In my defence, it's one of the very few comic sites with a proper f**king open API, and I needed something to check that the parental controls actually work. Purely for testing. Strictly professional. Nothing to see here.
 >
 > It is locked away by default, so unless you go looking for it (you degen) you won't even know it's there. You can also just delete `APIKOmicReader.koplugin/apiko/sources/nhentai.lua` if you dont want this depravity on your device.
 
-You can add more sites yourself, see [For tinkerers](#for-tinkerers).
+A few things about Atsumaru: the website itself is behind Cloudflare, but its API isn't, so it works fine from the plugin. A chapter often has uploads from several groups, so if one is AVIF, look for the same chapter number in the list, because another upload might be WebP (which works).
+
+**Want another site?** Check [potential_sources.md](potential_sources.md). It's every site I've looked at (and that people have asked for), which ones can be added and why the rest can't. Short version: the site needs a simple open API, so no scraping, cookies or weird tricks. You can also add sites yourself, see [For tinkerers](#for-tinkerers).
 
 ## Installing
 
@@ -101,6 +104,14 @@ Don't want to sit and watch downloads? Line them up and let them run.
 Pages are fetched several at a time, which makes chapters download a lot faster. Pick how many in Settings > Parallel page downloads (1 to 6, default 3). If the site starts complaining or your Wi-Fi is bad, drop it to 1.
 
 While a download or the queue is running, the plugin keeps the device awake so it doesn't go to sleep or lose Wi-Fi halfway through a big batch. Normal sleep comes back as soon as it's done.
+
+### Pages KOReader can't show
+
+KOReader shows JPG, PNG, GIF and WebP, but not AVIF, HEIC or JPEG XL (for now...). Some sites, like Atsumaru, use AVIF for a lot of their newer chapters. When a chapter has pages like that, the plugin warns you before downloading, on any site:
+
+- **One chapter:** "Cancel" or "Download anyway". If you download it anyway it won't open on the device. The plugin tells you where the file is, so you can copy it to your PC and convert the pages to a format that works.
+- **Several chapters or the queue:** you get asked once, and your answer goes for the rest of that download. Skipped chapters show up in the summary.
+- **Adding one chapter to the queue:** it gets checked right away, so you know before it's in the queue. A whole title gets checked when the queue runs.
 
 ### Library, collections and sorting
 
@@ -173,6 +184,9 @@ Some Wi-Fi networks (work, school) block comic sites. Try another one, like your
 **A download failed halfway.**
 Try lowering Settings > Parallel page downloads to 1 or 2. Failed titles stay in the download queue marked "failed", and hold/tap them to see the reason.
 
+**It says the pages are AVIF (or HEIC, or JPEG XL).**
+KOReader can't show those images yet. See [Pages KOReader can't show](#pages-koreader-cant-show). On Atsumaru, try another group's upload of the same chapter.
+
 **My comics aren't with my books.**
 That's on purpose. They're kept in a hidden folder and only show up in the plugin. They don't appear in KOReader's reading history either.
 
@@ -196,12 +210,17 @@ Every site is one file in `APIKOmicReader.koplugin/apiko/sources/`. Whatever is 
 
 Search, covers, downloads (parallel too), the queue, history, library, collections, bookmarks and the parental controls all work for the new site without changing anything else. If your site gives chapters a `number`, "Download a range" and the library's chapter order use it. If a site file has a mistake it just gets skipped and the reason goes in `crash.log` (search for `skipping source`). Files starting with `_` are ignored.
 
+For sites that don't fit the template, `mangadex.lua` and `atsumaru.lua` are hand-written ones. The warning about unsupported images works by itself: the plugin reads each page's format from its address, or from an `ext` the site file can set. A site file can also add its own tip to that warning with `unsupported_hint`.
+
+Not sure which site to try? [potential_sources.md](potential_sources.md) has a list of candidates, with links to code that already talks to their APIs.
+
 ### Files
 
 ```
 unsetup.bat                     Windows installer
 tools/setup.ps1                 What the installer runs
 docs/                           The pictures in this README
+potential_sources.md            Sites that could be added (or not), and why
 APIKOmicReader.koplugin/        The plugin, goes in koreader/plugins/
   main.lua                      Screens, navigation, downloads, queue, parental controls
   apiko/home.lua                Home screen

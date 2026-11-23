@@ -283,6 +283,8 @@ function Store.addToQueue(source_id, item, chapter)
         },
         chapter_id = chapter and chapter.id or nil,
         chapter_title = chapter and chapter.title or nil,
+        -- The user already agreed to formats KOReader can't display.
+        allow_unsupported = chapter and chapter.allow_unsupported or nil,
         time = os.time(),
     }
     table.insert(list, entry)

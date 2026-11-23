@@ -59,11 +59,65 @@ local function choiceText(choices, id)
     return choices[1].text
 end
 
+-- Image type from the file's first bytes, or nil if it isn't an image.
 local function imageExt(data)
     if data:sub(1, 3) == "\255\216\255" then return "jpg" end
     if data:sub(1, 8) == "\137PNG\r\n\26\n" then return "png" end
     if data:sub(1, 4) == "GIF8" then return "gif" end
     if data:sub(1, 4) == "RIFF" and data:sub(9, 12) == "WEBP" then return "webp" end
+    -- Formats KOReader can't display (see UNSUPPORTED below).
+    if data:sub(5, 8) == "ftyp" then
+        -- Major brand, then compatible brands (AVIF can also say "mif1").
+        local header = data:sub(9, 40)
+        if header:find("avi[fs]") then return "avif" end
+        if header:find("hei[cx]") or header:find("mif1") then return "heic" end
+    end
+    if data:sub(1, 2) == "\255\10" or data:sub(1, 12) == "\0\0\0\12JXL \13\10\135\10" then return "jxl" end
+end
+
+-- Image formats KOReader can't display (for now). Pages in these formats are
+-- only downloaded after a warning, and the CBZ can't be read on the device.
+local UNSUPPORTED = { avif = true, heic = true, heif = true, jxl = true }
+
+local function isSupported(ext)
+    return ext ~= nil and not UNSUPPORTED[ext]
+end
+
+-- Formats of a page list that KOReader can't display, from each page's `ext`
+-- or its first URL. Returns { "AVIF", ... } and how many pages use them.
+local function unsupportedFormats(pages)
+    local names, seen, count = {}, {}, 0
+    for __, page in ipairs(pages) do
+        local ext = page.ext
+        if not ext and page.urls and page.urls[1] then
+            ext = page.urls[1]:match("^[^?#]*%.(%w+)$")
+        end
+        ext = ext and ext:lower()
+        if ext and UNSUPPORTED[ext] then
+            count = count + 1
+            if not seen[ext] then
+                seen[ext] = true
+                table.insert(names, ext:upper())
+            end
+        end
+    end
+    return names, count
+end
+
+-- Warning shown before downloading pages KOReader can't display.
+local function formatWarning(source, chapter_title, names, count, total)
+    local formats = table.concat(names, "/")
+    local lines = {}
+    if chapter_title then table.insert(lines, chapter_title) end
+    if count >= total then
+        table.insert(lines, T(_("This chapter's pages are %1 images*."), formats))
+    else
+        table.insert(lines, T(_("%1 of this chapter's %2 pages are %3 images*."), count, total, formats))
+    end
+    if source.unsupported_hint then table.insert(lines, source.unsupported_hint) end
+    table.insert(lines, "")
+    table.insert(lines, T(_("* KOReader doesn't support %1 formats (for now...). You can still download it and try to convert it to a supported type."), formats))
+    return table.concat(lines, "\n")
 end
 
 local function safeName(s)
@@ -683,7 +737,7 @@ end
 function ApiKomic:fetchThumb(source, item)
     if not item.thumb then return nil end
     local data = Http.get(item.thumb, { referer = source.base .. "/", user_agent = source.user_agent })
-    if data and imageExt(data) then return data end
+    if data and isSupported(imageExt(data)) then return data end
     return nil
 end
 
@@ -1485,9 +1539,14 @@ function ApiKomic:fetchImage(source, page)
     for n = 0, #urls - 1 do
         local idx = (start - 1 + n) % #urls + 1
         local data, err = Http.get(urls[idx], { referer = source.base .. "/", user_agent = source.user_agent })
-        if data and imageExt(data) then
+        local ext = data and imageExt(data)
+        if ext and (isSupported(ext) or page.allow_unsupported) then
             self.mirror_source, self.mirror_index = source.id, idx
             return data
+        end
+        if ext then
+            -- Not announced by the page list, so the user wasn't asked.
+            return nil, T(_("KOReader can't display %1 images."), ext:upper())
         end
         last_err = err or _("The server did not return an image.")
         logger.info("APIKOmic: image failed", urls[idx], last_err)
@@ -1520,13 +1579,19 @@ function ApiKomic:download(source, item, chapter, to_library)
                 Comics.prune(source.id, math.max(1, tonumber(Settings.get().cache_keep) or 20))
                 dir = history_dir
             end
-            local path, err = self:fetchChapter(source, item, chapter, dir, "")
+            local run = {}
+            local path, err = self:fetchChapter(source, item, chapter, dir, "", run)
             Trapper:clear()
             if not path then
                 if err then showMessage(err) end
                 return
             end
-            if to_library then
+            if run.saved_unsupported then
+                -- KOReader can't open it; say where it is so it can be converted.
+                showMessage(T(_("Downloaded, but KOReader can't display %1 images, so it won't open here.\n\nFile:\n%2"),
+                    run.saved_unsupported, path))
+                if self:topScreen() == "chapters" then self:navRefresh() end
+            elseif to_library then
                 showMessage(_("Saved to library."))
                 if self:topScreen() == "chapters" then self:navRefresh() end
             else
@@ -1701,15 +1766,40 @@ end
 -- Downloads one chapter into dir as a CBZ; must run inside Trapper:wrap.
 -- `status` is shown above the progress. Returns the file's path, or nil and
 -- an error message (no message when the user cancelled). Keeps the device awake.
-function ApiKomic:fetchChapter(source, item, chapter, dir, status)
-    return whileAwake(function() return self:fetchChapterNow(source, item, chapter, dir, status) end)
+-- `run` (optional) is shared by the chapters of one download:
+--   run.bulk              several chapters: ask about unsupported formats once
+--   run.unsupported       the answer so far (nil = not asked yet)
+--   run.saved_unsupported set to the format names when such a chapter was saved
+function ApiKomic:fetchChapter(source, item, chapter, dir, status, run)
+    return whileAwake(function() return self:fetchChapterNow(source, item, chapter, dir, status, run) end)
 end
 
-function ApiKomic:fetchChapterNow(source, item, chapter, dir, status)
+function ApiKomic:fetchChapterNow(source, item, chapter, dir, status, run)
+    run = run or {}
     if not Trapper:info(status .. _("Fetching page list…")) then return nil end
     local ok, pages, err = pcall(source.getPages, source, chapter, sourceOpts())
     if not ok then pages, err = nil, tostring(pages) end
     if not pages or #pages == 0 then return nil, err or _("No pages found.") end
+
+    -- Pages KOReader can't display: download them only if the user agrees.
+    local names, count = unsupportedFormats(pages)
+    if #names > 0 then
+        local formats = table.concat(names, "/")
+        local allow = chapter.allow_unsupported or run.unsupported
+        if allow == nil then
+            local text = formatWarning(source, chapter.title, names, count, #pages)
+            if run.bulk then text = text .. "\n\n" .. _("Your answer applies to the rest of this download.") end
+            allow = Trapper:confirm(text, run.bulk and _("Skip") or _("Cancel"), _("Download anyway"))
+            if run.bulk then run.unsupported = allow end
+        end
+        if not allow then
+            -- In a bulk download a skipped chapter is reported, not a cancel.
+            if run.bulk then return nil, T(_("skipped (%1 images)"), formats) end
+            return nil
+        end
+        for __, page in ipairs(pages) do page.allow_unsupported = true end
+        run.saved_unsupported = formats
+    end
 
     local title = safeName(chapter.file_title or chapter.title or item.title)
     local final = dir .. "/" .. Comics.fileName(source.id, chapter.id, item.adult or source.adult, title)
@@ -1733,13 +1823,13 @@ end
 -- Saves one chapter to the library: "skipped" (already there), "saved", or
 -- nil and an error (no error when the user cancelled). Moves it out of
 -- History if it is there. Must run inside Trapper:wrap.
-function ApiKomic:saveChapter(source, item, chapter, status)
+function ApiKomic:saveChapter(source, item, chapter, status, run)
     local key = source.id .. "_" .. chapter.id
     local library_dir, history_dir = Paths.library(source.id), Paths.history(source.id)
     if Comics.find(library_dir, key) then return "skipped" end
     local in_history = Comics.find(history_dir, key)
     if in_history and Comics.move(in_history, library_dir) then return "saved" end
-    local path, err = self:fetchChapter(source, item, chapter, library_dir, status)
+    local path, err = self:fetchChapter(source, item, chapter, library_dir, status, run)
     if path then return "saved" end
     return nil, err
 end
@@ -1808,11 +1898,12 @@ function ApiKomic:downloadChapters(source, item, chapters)
     NetworkMgr:runWhenOnline(function()
         Trapper:wrap(function()
             local saved, skipped, failed, cancelled = 0, 0, {}, false
+            local run = { bulk = true }
             awakeStart()
             local run_ok, run_err = pcall(function()
                 for n, chapter in ipairs(chapters) do
                     local status = T(_("Chapter %1 of %2: %3\n"), n, #chapters, chapter.title)
-                    local result, err = self:saveChapter(source, item, chapter, status)
+                    local result, err = self:saveChapter(source, item, chapter, status, run)
                     if result == "saved" then
                         saved = saved + 1
                     elseif result == "skipped" then
@@ -1835,6 +1926,9 @@ function ApiKomic:downloadChapters(source, item, chapters)
             local lines = { cancelled and _("Download cancelled.") or _("Download finished.") }
             table.insert(lines, T(_("Saved to library: %1"), saved))
             if skipped > 0 then table.insert(lines, T(_("Already there: %1"), skipped)) end
+            if run.saved_unsupported then
+                table.insert(lines, T(_("Some saved chapters have %1 images, which KOReader can't display."), run.saved_unsupported))
+            end
             if #failed > 0 then
                 table.insert(lines, T(_("Failed: %1"), #failed))
                 for i = 1, math.min(3, #failed) do table.insert(lines, "• " .. failed[i]) end
@@ -1889,17 +1983,35 @@ function ApiKomic:queueChanged()
 end
 
 -- chapter: nil for the whole title, or a chapter.
+-- A single chapter's page list is checked first, to warn about image formats
+-- KOReader can't display (a whole title is checked when the queue runs).
 function ApiKomic:enqueue(source, item, chapter)
-    local entry = Store.addToQueue(source.id, item, chapter and { id = chapter.id, title = chapter.title })
-    if not entry then
-        showMessage(_("Already in the download queue."))
-        return
+    if Store.isQueued(source.id, item.id, chapter and chapter.id) then
+        return showMessage(_("Already in the download queue."))
     end
-    UIManager:show(InfoMessage:new{
-        text = T(_("Added to the download queue (%1)."), self:queueCount()),
-        timeout = 2,
+    local function add(allow_unsupported)
+        local entry = Store.addToQueue(source.id, item, chapter and {
+            id = chapter.id,
+            title = chapter.title,
+            allow_unsupported = allow_unsupported,
+        })
+        if not entry then return showMessage(_("Already in the download queue.")) end
+        UIManager:show(InfoMessage:new{
+            text = T(_("Added to the download queue (%1)."), self:queueCount()),
+            timeout = 2,
+        })
+        self:queueChanged()
+    end
+    if not chapter or not NetworkMgr:isOnline() then return add() end
+    local pages = busy(_("Checking pages…"), function() return source:getPages(chapter, sourceOpts()) end)
+    if type(pages) ~= "table" or #pages == 0 then return add() end -- checked again when it runs
+    local names, count = unsupportedFormats(pages)
+    if #names == 0 then return add() end
+    UIManager:show(ConfirmBox:new{
+        text = formatWarning(source, chapter.title, names, count, #pages),
+        ok_text = _("Add anyway"),
+        ok_callback = function() add(true) end,
     })
-    self:queueChanged()
 end
 
 function ApiKomic:showQueue(entry)
@@ -1984,6 +2096,7 @@ end
 function ApiKomic:processQueue()
     local entries = visible(Store.queue())
     local saved, skipped, failed, cancelled = 0, 0, {}, false
+    local run = { bulk = true }
     for n, entry in ipairs(entries) do
         local source = Sources.get(entry.source)
         local item = entry.item
@@ -2005,6 +2118,8 @@ function ApiKomic:processQueue()
                 if entry.chapter_id then
                     for __, c in ipairs(chapters) do
                         if c.id == entry.chapter_id then
+                            -- Already warned about its format when it was queued.
+                            c.allow_unsupported = entry.allow_unsupported or nil
                             list = { c }
                             break
                         end
@@ -2015,7 +2130,7 @@ function ApiKomic:processQueue()
                 if #list == 0 then problem = _("No chapters found.") end
                 for i, chapter in ipairs(list) do
                     local label = status .. T(_("Chapter %1 of %2: %3\n"), i, #list, chapter.title)
-                    local result, cerr = self:saveChapter(source, item, chapter, label)
+                    local result, cerr = self:saveChapter(source, item, chapter, label, run)
                     if result == "saved" then
                         saved = saved + 1
                     elseif result == "skipped" then
@@ -2041,6 +2156,9 @@ function ApiKomic:processQueue()
     local lines = { cancelled and _("Queue stopped.") or _("Queue finished.") }
     table.insert(lines, T(_("Saved to library: %1"), saved))
     if skipped > 0 then table.insert(lines, T(_("Already there: %1"), skipped)) end
+    if run.saved_unsupported then
+        table.insert(lines, T(_("Some saved chapters have %1 images, which KOReader can't display."), run.saved_unsupported))
+    end
     if #failed > 0 then
         table.insert(lines, T(_("Failed: %1"), #failed))
         for i = 1, math.min(3, #failed) do table.insert(lines, "• " .. failed[i]) end

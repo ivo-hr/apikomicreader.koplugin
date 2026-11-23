@@ -25,17 +25,20 @@ Quería leer cómics y manga en el Kindle sin tener que descargarlos en el PC y 
 | Web | Qué hay |
 | --- | --- |
 | MangaDex | Mazo de manga, en un montón de idiomas. |
+| Atsumaru | Mazo de manga y manhwa, en inglés. Recién añadida, todavía en pruebas. Muchos capítulos nuevos solo vienen en imágenes AVIF, que KOReader aún no sabe mostrar (mira [Páginas que KOReader no puede mostrar](#páginas-que-koreader-no-puede-mostrar)). |
 | Internet Archive | Cómics occidentales que la peña ha subido a archive.org, desde clásicos de la Edad de Oro hasta colecciones de Marvel y DC. Solo salen las subidas que tienen archivos de cómic de verdad (CBZ/CBR), así que te ahorras casi toda la morralla. |
 | nhentai | Cómics para adultos (+18). Ocultos salvo que actives el contenido adulto. |
 
 Un par de cosas del Internet Archive: es lo que sube la gente, así que la calidad y los nombres van como van. Ordenar por "Most downloaded" (lo que sale por defecto) ayuda mazo. Muchas subidas traen una colección entera, así que te sale un capítulo por número. No tiene clasificación por edades, así que el filtro de contenido adulto no puede ocultar nada ahí, y las páginas siempre vienen en calidad original. También puedes pegar un enlace de archive.org en el buscador para abrir esa subida directamente.
 
-> **Sobre la tercera...** 👀
+> **Sobre la última...** 👀
 > Sí, ya lo sé. En mi defensa diré que es de las poquísimas webs de cómics con una puñetera API abierta como Dios manda, y necesitaba algo para comprobar que el control parental funcionaba de verdad. Solo para pruebas, ¿eh? Estrictamente profesional. Aquí no hay nada que ver, asi que tira.
 >
 > Viene bloqueada por defecto, así que salvo que te pongas a buscarla (guarrindongo) ni te vas a enterar de que existe. Y si no quieres esta depravación en tu dispositivo, borra `APIKOmicReader.koplugin/apiko/sources/nhentai.lua` y listo.
 
-Puedes añadir más webs tú mismo, mira [Para los manitas](#para-los-manitas).
+Un par de cosas de Atsumaru: la web en sí está detrás de Cloudflare, pero su API no, así que desde el plugin va sin problema. Muchos capítulos tienen subidas de varios grupos, así que si uno te sale en AVIF, busca el mismo número de capítulo en la lista, que a lo mejor otra subida está en WebP (y esa sí va).
+
+**¿Quieres otra web?** Mira [potential_sources.md](potential_sources.md) (en inglés). Ahí están todas las webs que he mirado (y las que me ha pedido la peña), cuáles se pueden añadir y por qué las demás no. Resumiendo: la web tiene que tener una API abierta y sencilla, nada de scraping, cookies ni chapuzas raras. También puedes añadir webs tú mismo, mira [Para los manitas](#para-los-manitas).
 
 ## Instalación
 
@@ -101,6 +104,14 @@ Si mantienes el dedo sobre casi cualquier cosa te salen más opciones (guardar, 
 Las páginas se bajan de varias en varias, así que los capítulos van mucho más rápido. Elige cuántas a la vez en "Settings" > "Parallel page downloads" (de 1 a 6, por defecto 3). Si la web se queja o tu wifi va fatal, bájalo a 1.
 
 Mientras se baja algo (o la cola), el plugin mantiene el lector despierto para que no se duerma ni pierda el wifi a mitad de una descarga gorda. En cuanto termina, vuelve a dormirse como siempre.
+
+### Páginas que KOReader no puede mostrar
+
+KOReader muestra JPG, PNG, GIF y WebP, pero no AVIF, HEIC ni JPEG XL (de momento...). Algunas webs, como Atsumaru, usan AVIF en muchos de sus capítulos nuevos. Cuando un capítulo tiene páginas así, el plugin te avisa antes de bajarlo, sea de la web que sea:
+
+- **Un capítulo:** "Cancel" o "Download anyway". Si lo bajas igualmente no se va a abrir en el lector. El plugin te dice dónde está el archivo, para que te lo pases al PC y conviertas las páginas a un formato que sí vaya.
+- **Varios capítulos o la cola:** te pregunta una vez y tu respuesta vale para el resto de esa descarga. Los capítulos que te saltas salen en el resumen.
+- **Meter un capítulo en la cola:** se comprueba en el momento, así que te enteras antes de que entre en la cola. Si metes un título entero, se comprueba cuando la cola se pone a descargar.
 
 ### Biblioteca, colecciones y orden
 
@@ -173,6 +184,9 @@ Hay redes wifi (la del curro, la de clase) que bloquean las webs de cómics. Pru
 **Una descarga ha fallado a medias.**
 Prueba a bajar "Settings" > "Parallel page downloads" a 1 o 2. Los títulos que fallan se quedan en la cola de descargas marcados como "failed"; tócalos y te dice el motivo.
 
+**Me dice que las páginas son AVIF (o HEIC, o JPEG XL).**
+KOReader todavía no sabe mostrar esas imágenes. Mira [Páginas que KOReader no puede mostrar](#páginas-que-koreader-no-puede-mostrar). En Atsumaru, prueba otra subida del mismo capítulo de otro grupo.
+
 **Mis cómics no salen con mis libros.**
 Es a propósito, tío. Se guardan en una carpeta oculta y solo aparecen en el plugin. Tampoco salen en el historial de lectura de KOReader.
 
@@ -196,12 +210,17 @@ Cada web es un archivo en `APIKOmicReader.koplugin/apiko/sources/`. Todo lo que 
 
 La búsqueda, las portadas, las descargas (también en paralelo), la cola, el historial, la biblioteca, las colecciones, los marcadores y el control parental funcionan con la web nueva sin tocar nada más. Si tu web da un `number` a los capítulos, "Download a range" y el orden de capítulos de la biblioteca lo usan. Si el archivo de una web tiene algún fallo, simplemente se salta y el motivo queda en `crash.log` (busca `skipping source`). Los archivos que empiezan por `_` se ignoran.
 
+Para webs que no encajan en la plantilla, `mangadex.lua` y `atsumaru.lua` están escritos a mano. El aviso de imágenes no compatibles va solo: el plugin saca el formato de cada página de su dirección, o de un `ext` que puede poner el archivo de la web. El archivo de una web también puede añadir su propio consejo a ese aviso con `unsupported_hint`.
+
+¿No sabes qué web probar? En [potential_sources.md](potential_sources.md) hay una lista de candidatas, con enlaces a código que ya habla con sus APIs.
+
 ### Archivos
 
 ```
 unsetup.bat                     Instalador para Windows
 tools/setup.ps1                 Lo que ejecuta el instalador
 docs/                           Las imágenes de este README
+potential_sources.md            Webs que se podrían añadir (o no), y por qué
 APIKOmicReader.koplugin/        El plugin, va en koreader/plugins/
   main.lua                      Pantallas, navegación, descargas, cola, control parental
   apiko/home.lua                Pantalla de inicio
