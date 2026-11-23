@@ -24,7 +24,7 @@ Quería leer cómics y manga en el Kindle sin tener que descargarlos en el PC y 
 
 | Web | Qué hay |
 | --- | --- |
-| MangaDex | Mazo de manga, en un montón de idiomas. |
+| MangaDex | Mucho manga, en un montón de idiomas. |
 | Atsumaru | Mazo de manga y manhwa, en inglés. Recién añadida, todavía en pruebas. Muchos capítulos nuevos solo vienen en imágenes AVIF, que KOReader aún no sabe mostrar (mira [Páginas que KOReader no puede mostrar](#páginas-que-koreader-no-puede-mostrar)). |
 | Internet Archive | Cómics occidentales que la peña ha subido a archive.org, desde clásicos de la Edad de Oro hasta colecciones de Marvel y DC. Solo salen las subidas que tienen archivos de cómic de verdad (CBZ/CBR), así que te ahorras casi toda la morralla. |
 | nhentai | Cómics para adultos (+18). Ocultos salvo que actives el contenido adulto. |
@@ -36,9 +36,9 @@ Un par de cosas del Internet Archive: es lo que sube la gente, así que la calid
 >
 > Viene bloqueada por defecto, así que salvo que te pongas a buscarla (guarrindongo) ni te vas a enterar de que existe. Y si no quieres esta depravación en tu dispositivo, borra `APIKOmicReader.koplugin/apiko/sources/nhentai.lua` y listo.
 
-Un par de cosas de Atsumaru: la web en sí está detrás de Cloudflare, pero su API no, así que desde el plugin va sin problema. Muchos capítulos tienen subidas de varios grupos, así que si uno te sale en AVIF, busca el mismo número de capítulo en la lista, que a lo mejor otra subida está en WebP (y esa sí va).
+Una cosilla de Atsumaru: muchos capítulos tienen subidas de varios grupos, así que si uno te sale en AVIF, busca el mismo número de capítulo en la lista, que a lo mejor otra subida está en WebP (y esa sí va).
 
-**¿Quieres otra web?** Mira [potential_sources.md](potential_sources.md) (en inglés). Ahí están todas las webs que he mirado (y las que me ha pedido la peña), cuáles se pueden añadir y por qué las demás no. Resumiendo: la web tiene que tener una API abierta y sencilla, nada de scraping, cookies ni chapuzas raras. También puedes añadir webs tú mismo, mira [Para los manitas](#para-los-manitas).
+**¿Quieres otra web?** Mira [potential_sources.md](potential_sources.md) (en inglés). Ahí están todas las webs que he mirado (y las que me ha pedido la gente), cuáles se pueden añadir y por qué las demás no. Resumiendo: la web tiene que tener una API abierta y sencilla, nada de scraping, cookies ni chapuzas raras (por lo menos en main). También puedes añadir webs tú mismo, mira [Para los manitas](#para-los-manitas).
 
 ## Instalación
 
