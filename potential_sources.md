@@ -18,7 +18,7 @@ Also keep in mind:
 | MangaDex | Huge manga library, lots of languages | ✅ | Official public API. |
 | nhentai | Adult doujinshi | ✅ | JSON API. |
 | archive.org | Old and public-domain comics | ✅ | Public search and metadata APIs. |
-| Atsumaru (atsu.moe) | Big English manga/manhwa site | 🧪 | The website has Cloudflare, but the API doesn't. Chapters uploaded since mid-2026 are mostly AVIF, though older ones (and sometimes another group's upload of the same chapter) are WebP. |
+| Atsumaru (atsu.moe) | Big English manga/manhwa site | ✅ | The website has Cloudflare, but the API doesn't. Chapters uploaded since mid-2026 are mostly AVIF, though older ones (and sometimes another group's upload of the same chapter) are WebP. |
 | EZManga / QiScans | English manhwa (two sites, one API) | 🟢 | Simple JSON API (`vapi.ezmanga.org`). One port covers both. |
 | MangaK / Toontop | English manhwa, lots of adult stuff (two sites, one API) | 🟢 | Simple JSON API (`api.mangak.io`). One port covers both. |
 | Chikari | English manga and novels | 🟢 | Simple JSON API. The novels have to be filtered out. |

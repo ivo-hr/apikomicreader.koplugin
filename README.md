@@ -11,6 +11,33 @@
 
 ---
 
+## What's new
+
+**v.1.1.6** (2026-11-23)
+- Atsumaru (no AVIF support, see [Pages KOReader can't show](#pages-koreader-cant-show)).
+- Warning before downloading pages KOReader can't show (AVIF, HEIC, JPEG XL).
+- Library covers show progress bars, ✓ badges and chapter counts. Collections look like a pile.
+- Add comics to KOReader's own collections.
+- Adult content notice moved to a banner at the top.
+- Easier `_template.lua`, and [potential_sources.md](potential_sources.md).
+
+<details>
+<summary>Older versions</summary>
+
+**v.1.1.3** (2026-11-06)
+- Download queue, parallel page downloads, stays awake while downloading.
+- Library grouped by title, with read markers, collections and sorting.
+
+**v.1.0.1a** (2026-11-06)
+- ZenOS icon fix.
+
+**v.1.0.0** (2026-11-06)
+- First release: MangaDex, Internet Archive and nhentai, library, history, bookmarks, parental controls, Panels+ and ZenOS support.
+
+</details>
+
+---
+
 I wanted to read comics and manga on my Kindle without downloading stuff on my PC and copying it over every time, and I discovered that my main source for comics (mangadex) had an open API sooo... here it is.  You search a title/tag/number/whatever from the plugin, tap what you want and read it. The comics stay inside the plugin, so they don't end up mixed with your books.
 
 <p align="center">
@@ -25,7 +52,7 @@ I wanted to read comics and manga on my Kindle without downloading stuff on my P
 | Site | What's there |
 | --- | --- |
 | MangaDex | Loads of manga, in lots of languages. |
-| Atsumaru | Loads of manga and manhwa, in English. New, still being tested. Lots of newer chapters only come as AVIF images, which KOReader can't show yet (see [Pages KOReader can't show](#pages-koreader-cant-show)). |
+| Atsumaru | Loads of manga and manhwa, in English. Lots of newer chapters only come as AVIF images, which KOReader can't show yet (see [Pages KOReader can't show](#pages-koreader-cant-show)). |
 | Internet Archive | Western comics people have uploaded to archive.org, from Golden Age classics to Marvel and DC runs. Only uploads that contain actual comic files (CBZ/CBR) show up, so you skip most of the junk. |
 | nhentai | Adult (18+) comics. Hidden unless you turn adult content on. |
 
@@ -107,7 +134,7 @@ While a download or the queue is running, the plugin keeps the device awake so i
 
 ### Pages KOReader can't show
 
-KOReader shows JPG, PNG, GIF and WebP, but not AVIF, HEIC or JPEG XL (for now...). Some sites, like Atsumaru, use AVIF for a lot of their newer chapters. When a chapter has pages like that, the plugin warns you before downloading, on any site:
+KOReader shows JPG, PNG, GIF and WebP, but not AVIF, HEIC or JPEG XL (for now...). AVIF support is requested in KOReader's [feature request #10973](https://github.com/koreader/koreader/issues/10973), so keep an eye on it. There was a pull request adding it ([koreader-base#2383](https://github.com/koreader/koreader-base/pull/2383)), but it was closed without being merged (one thing is to code using AI, another is to pull request without even testing lolol). Some sites, like Atsumaru, use AVIF for a lot of their newer chapters. When a chapter has pages like that, the plugin warns you before downloading, on any site:
 
 - **One chapter:** "Cancel" or "Download anyway". If you download it anyway it won't open on the device. The plugin tells you where the file is, so you can copy it to your PC and convert the pages to a format that works.
 - **Several chapters or the queue:** you get asked once, and your answer goes for the rest of that download. Skipped chapters show up in the summary.

@@ -11,6 +11,33 @@
 
 ---
 
+## Novedades
+
+**v.1.1.6** (23-11-2026)
+- Atsumaru (sin soporte para AVIF, mira [Páginas que KOReader no puede mostrar](#páginas-que-koreader-no-puede-mostrar)).
+- Aviso antes de descargar páginas que KOReader no puede mostrar (AVIF, HEIC, JPEG XL).
+- Las portadas de la biblioteca enseñan barra de progreso, insignia de ✓ y número de capítulos. Las colecciones parecen una pila.
+- Mete cómics en las colecciones del propio KOReader.
+- El aviso de contenido adulto pasa a ser una franja arriba.
+- `_template.lua` más fácil, y [potential_sources.md](potential_sources.md).
+
+<details>
+<summary>Versiones anteriores</summary>
+
+**v.1.1.3** (06-11-2026)
+- Cola de descargas, descargas en paralelo, no se duerme mientras descarga.
+- Biblioteca agrupada por título, con marcas de leído, colecciones y orden.
+
+**v.1.0.1a** (06-11-2026)
+- Arreglo del icono de ZenOS.
+
+**v.1.0.0** (06-11-2026)
+- Primera versión: MangaDex, Internet Archive y nhentai, biblioteca, historial, marcadores, control parental, Panels+ y ZenOS.
+
+</details>
+
+---
+
 Quería leer cómics y manga en el Kindle sin tener que descargarlos en el PC y pasarlos a mano cada dos por tres. Y resulta que mi fuente principal de cómics (MangaDex) tiene una API abierta, así que... aquí está. Buscas un título, una etiqueta, un número o lo que te dé la gana desde el plugin, tocas lo que quieras y a leer. Los cómics se quedan dentro del plugin, así que no se te mezclan con los libros.
 
 <p align="center">
@@ -25,7 +52,7 @@ Quería leer cómics y manga en el Kindle sin tener que descargarlos en el PC y 
 | Web | Qué hay |
 | --- | --- |
 | MangaDex | Mucho manga, en un montón de idiomas. |
-| Atsumaru | Mazo de manga y manhwa, en inglés. Recién añadida, todavía en pruebas. Muchos capítulos nuevos solo vienen en imágenes AVIF, que KOReader aún no sabe mostrar (mira [Páginas que KOReader no puede mostrar](#páginas-que-koreader-no-puede-mostrar)). |
+| Atsumaru | Mazo de manga y manhwa, en inglés. Muchos capítulos nuevos solo vienen en imágenes AVIF, que KOReader aún no sabe mostrar (mira [Páginas que KOReader no puede mostrar](#páginas-que-koreader-no-puede-mostrar)). |
 | Internet Archive | Cómics occidentales que la peña ha subido a archive.org, desde clásicos de la Edad de Oro hasta colecciones de Marvel y DC. Solo salen las subidas que tienen archivos de cómic de verdad (CBZ/CBR), así que te ahorras casi toda la morralla. |
 | nhentai | Cómics para adultos (+18). Ocultos salvo que actives el contenido adulto. |
 
@@ -107,7 +134,7 @@ Mientras se baja algo (o la cola), el plugin mantiene el lector despierto para q
 
 ### Páginas que KOReader no puede mostrar
 
-KOReader muestra JPG, PNG, GIF y WebP, pero no AVIF, HEIC ni JPEG XL (de momento...). Algunas webs, como Atsumaru, usan AVIF en muchos de sus capítulos nuevos. Cuando un capítulo tiene páginas así, el plugin te avisa antes de bajarlo, sea de la web que sea:
+KOReader muestra JPG, PNG, GIF y WebP, pero no AVIF, HEIC ni JPEG XL (de momento...). El soporte para AVIF está pedido en la [petición #10973](https://github.com/koreader/koreader/issues/10973) de KOReader, así que échale un ojo. Hubo un pull request que lo añadía ([koreader-base#2383](https://github.com/koreader/koreader-base/pull/2383)), pero lo cerraron sin aceptarlo (una cosa es programar con IA y otra cosa es hacer un merge request sin probarlo jajaja). Algunas webs, como Atsumaru, usan AVIF en muchos de sus capítulos nuevos. Cuando un capítulo tiene páginas así, el plugin te avisa antes de bajarlo, sea de la web que sea:
 
 - **Un capítulo:** "Cancel" o "Download anyway". Si lo bajas igualmente no se va a abrir en el lector. El plugin te dice dónde está el archivo, para que te lo pases al PC y conviertas las páginas a un formato que sí vaya.
 - **Varios capítulos o la cola:** te pregunta una vez y tu respuesta vale para el resto de esa descarga. Los capítulos que te saltas salen en el resumen.
