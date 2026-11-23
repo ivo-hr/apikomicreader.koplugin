@@ -14,6 +14,8 @@ local ImageWidget = require("ui/widget/imagewidget")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local LeftContainer = require("ui/widget/container/leftcontainer")
 local LineWidget = require("ui/widget/linewidget")
+local OverlapGroup = require("ui/widget/overlapgroup")
+local ProgressWidget = require("ui/widget/progresswidget")
 local RenderImage = require("ui/renderimage")
 local Size = require("ui/size")
 local TextBoxWidget = require("ui/widget/textboxwidget")
@@ -49,33 +51,124 @@ function Cell:init()
     self[1] = self:build()
 end
 
-function Cell:cover(w, h)
-    local data = self.browser.thumbs[self.item]
-    if data then
-        local ok, bb = pcall(RenderImage.renderImageData, RenderImage, data, #data, false)
-        if ok and bb then
-            return CenterContainer:new{
-                dimen = Geom:new{ w = w, h = h },
-                ImageWidget:new{ image = bb, image_disposable = true, width = w, height = h, scale_factor = 0 },
-            }
-        end
-        logger.info("APIKOmic: could not decode cover for", self.item.title)
-    end
-    -- Placeholder: "…" while loading, "×" when there is no cover.
+-- A plain w×h box with a border, for placeholders and the pile behind a
+-- collection's cover.
+local function box(w, h, color, background, child)
     local border = Size.border.thin
     return FrameContainer:new{
         padding = 0,
         bordersize = border,
-        color = Blitbuffer.COLOR_LIGHT_GRAY,
+        color = color,
+        background = background,
         CenterContainer:new{
             dimen = Geom:new{ w = w - 2 * border, h = h - 2 * border },
-            TextWidget:new{
-                text = data == false and "×" or "…",
-                face = Font:getFace("cfont", 22),
-                fgcolor = Blitbuffer.COLOR_DARK_GRAY,
-            },
+            child or HorizontalSpan:new{ width = 0 },
         },
     }
+end
+
+-- A small rounded label, white on black, that stands out on any cover.
+local function badge(text, small)
+    local h = Screen:scaleBySize(small and 20 or 26)
+    local border = Size.border.thin
+    local label = TextWidget:new{
+        text = text,
+        face = Font:getFace("cfont", small and 11 or 14),
+        bold = true,
+        fgcolor = Blitbuffer.COLOR_WHITE,
+    }
+    local w = math.max(h, label:getSize().w + h / 2)
+    return FrameContainer:new{
+        padding = 0,
+        bordersize = border,
+        color = Blitbuffer.COLOR_WHITE,
+        background = Blitbuffer.COLOR_BLACK,
+        radius = math.floor(h / 2),
+        CenterContainer:new{
+            dimen = Geom:new{ w = w - 2 * border, h = h - 2 * border },
+            label,
+        },
+    }
+end
+
+-- The cover image fitted into w×h, keeping its shape, and its size. Without
+-- an image: "…" while loading, "×" when there is none.
+function Cell:image(w, h)
+    local data = self.browser.thumbs[self.item]
+    if data then
+        local ok, bb = pcall(RenderImage.renderImageData, RenderImage, data, #data, false)
+        if ok and bb then
+            local scale = math.min(w / bb:getWidth(), h / bb:getHeight())
+            local iw = math.max(1, math.floor(bb:getWidth() * scale))
+            local ih = math.max(1, math.floor(bb:getHeight() * scale))
+            return ImageWidget:new{ image = bb, image_disposable = true, width = iw, height = ih, scale_factor = 0 },
+                iw, ih
+        end
+        logger.info("APIKOmic: could not decode cover for", self.item.title)
+    end
+    return box(w, h, Blitbuffer.COLOR_LIGHT_GRAY, nil, TextWidget:new{
+        text = data == false and "×" or "…",
+        face = Font:getFace("cfont", 22),
+        fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+    }), w, h
+end
+
+-- The cover with its marks (see Browser.badges): a ✓ badge top right, a
+-- number top left, a progress bar along the bottom and, for collections, a
+-- pile of covers behind it.
+function Cell:cover(w, h)
+    local b = self.browser.badges and self.browser.badges(self.item) or {}
+    local small = self.browser.mode ~= "grid"
+    local pile = b.stack and Screen:scaleBySize(small and 4 or 7) or 0
+    local border = pile > 0 and Size.border.thin or 0
+    local img, iw, ih = self:image(w - 2 * pile - 2 * border, h - 2 * pile - 2 * border)
+    if pile > 0 then
+        img = FrameContainer:new{ padding = 0, bordersize = border, img }
+        iw, ih = iw + 2 * border, ih + 2 * border
+    end
+    local group = OverlapGroup:new{ dimen = Geom:new{ w = iw + 2 * pile, h = ih + 2 * pile } }
+    local function place(widget, x, y)
+        widget.overlap_offset = { x, y }
+        table.insert(group, widget)
+    end
+    if pile > 0 then
+        place(box(iw, ih, Blitbuffer.COLOR_BLACK, Blitbuffer.COLOR_LIGHT_GRAY), 2 * pile, 0)
+        place(box(iw, ih, Blitbuffer.COLOR_BLACK, Blitbuffer.COLOR_WHITE), pile, pile)
+        place(img, 0, 2 * pile)
+    else
+        place(img, 0, 0)
+    end
+    local top = 2 * pile
+    local margin = Screen:scaleBySize(small and 3 or 5)
+    if b.count then
+        place(badge(tostring(b.count), small), margin, top + margin)
+    end
+    if b.done then
+        local check = badge("✓", small)
+        place(check, iw - check:getSize().w - margin, top + margin)
+    end
+    if b.progress then
+        local bar_h = Screen:scaleBySize(small and 5 or 8)
+        place(ProgressWidget:new{
+            width = iw - 2 * margin,
+            height = bar_h,
+            percentage = math.min(math.max(b.progress, 0), 1),
+            margin_h = 0,
+            margin_v = 0,
+            radius = math.floor(bar_h / 2),
+            bordersize = Size.border.thin,
+            bordercolor = Blitbuffer.COLOR_BLACK,
+            bgcolor = Blitbuffer.COLOR_WHITE,
+            fillcolor = Blitbuffer.COLOR_BLACK,
+        }, margin, top + ih - bar_h - margin)
+    end
+    return CenterContainer:new{ dimen = Geom:new{ w = w, h = h }, group }
+end
+
+-- Collections get a bold name as well as the pile.
+function Cell:isPile()
+    local b = self.browser.badges and self.browser.badges(self.item)
+    return b and b.stack or false
 end
 
 function Cell:build()
@@ -93,6 +186,7 @@ function Cell:build()
                 TextBoxWidget:new{
                     text = self.item.title,
                     face = Font:getFace("cfont", 15),
+                    bold = self:isPile(),
                     width = img_w,
                     height = text_h,
                     alignment = "center",
@@ -114,6 +208,7 @@ function Cell:build()
         TextBoxWidget:new{
             text = self.item.title,
             face = Font:getFace("cfont", 18),
+            bold = self:isPile(),
             width = text_w,
             height = thumb_h - subtitle_h,
             height_overflow_show_ellipsis = true,
@@ -202,6 +297,7 @@ local Browser = InputContainer:extend{
     load_more = nil,    -- function() -> bool, true if items were appended
     fetch_thumb = nil,  -- function(item) -> image data or nil
     subtitle = nil,     -- function(item) -> string or nil
+    badges = nil,       -- function(item) -> { done, progress = 0..1, count, stack } or nil
     on_tap = nil,       -- function(item)
     on_hold = nil,      -- function(item)
     on_back = nil,      -- function(); shows a back arrow when set

@@ -117,12 +117,12 @@ KOReader shows JPG, PNG, GIF and WebP, but not AVIF, HEIC or JPEG XL (for now...
 
 The Library groups the chapters you saved by title, so one manga is one entry instead of fifty. Tap a title to see its chapters. A title with a single saved chapter just shows up as that comic.
 
-Each chapter shows whether it's unread, half-read (with a percentage) or read (✓). A title counts as read once you're about 97% of the way through, or if you mark it finished in KOReader.
+Each chapter shows whether it's unread, half-read (a progress bar on the cover) or read (a ✓ badge). Titles with several chapters show how many they have in the top corner, and their bar fills up as you read them. A title counts as read once you're about 97% of the way through, or if you mark it finished in KOReader.
 
 **Collections** are your own groups of titles ("Reading now", "Superheroes", "Dropped"...):
 
 - Hold your finger on a title and tap Collections... to add it to one or make a new collection.
-- Collections show up first in the Library, in square brackets. Tap one to see its titles.
+- Collections show up first in the Library, as a pile of covers with a bold name (or with a "/" at the end in the simple list). Tap one to see its titles.
 - Hold a collection to rename or delete it. Deleting a collection never deletes the comics inside it.
 - Inside a collection, hold a title and pick "Remove from this collection".
 
@@ -148,7 +148,7 @@ To get rid of a whole title, hold your finger on it and pick "Delete all chapter
 
 Adult content is hidden by default. Adult sites don't show up, searches only give all-ages stuff, and any adult comics you already have are hidden too (that includes the download queue).
 
-To show it, long-press the logo on the home screen. The logo blushes and a warning stays at the bottom of the screen while adult content is visible. Long-press the logo again to hide it.
+To show it, long-press the logo on the home screen. The logo blushes and a black banner stays at the top of the screen, next to the X, while adult content is visible. Long-press the logo again to hide it.
 
 If you don't want other people turning it on, set a PIN in Settings > Parental controls PIN. After that, long-pressing the logo asks for the PIN first, and everything hides again when you close the plugin or the device goes to sleep.
 

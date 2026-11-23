@@ -117,12 +117,12 @@ KOReader muestra JPG, PNG, GIF y WebP, pero no AVIF, HEIC ni JPEG XL (de momento
 
 La "Library" agrupa por título los capítulos que te has guardado, así que un manga es una sola entrada en vez de cincuenta. Toca un título para ver sus capítulos. Si de un título solo tienes un capítulo, sale directamente ese cómic.
 
-Cada capítulo te dice si está sin leer, a medias (con porcentaje) o leído (✓). Cuenta como leído cuando llegas más o menos al 97%, o si lo marcas como terminado en KOReader.
+Cada capítulo te dice si está sin leer, a medias (una barra de progreso en la portada) o leído (una insignia con ✓). Los títulos con varios capítulos llevan en la esquina cuántos tienen, y su barra se va llenando según los lees. Cuenta como leído cuando llegas más o menos al 97%, o si lo marcas como terminado en KOReader.
 
 Las **colecciones** son tus propios grupos de títulos ("Leyendo ahora", "Superhéroes", "Abandonados"...):
 
 - Mantén el dedo sobre un título y dale a "Collections..." para meterlo en una o crear una nueva.
-- Las colecciones salen primero en la "Library", entre corchetes. Toca una para ver sus títulos.
+- Las colecciones salen primero en la "Library", como un montón de portadas con el nombre en negrita (o con una "/" al final en la lista simple). Toca una para ver sus títulos.
 - Mantén el dedo sobre una colección para renombrarla o borrarla. Borrar una colección nunca borra los cómics que tiene dentro.
 - Dentro de una colección, mantén el dedo sobre un título y elige "Remove from this collection".
 
@@ -148,7 +148,7 @@ Para quitarte un título entero de encima, mantén el dedo sobre él y elige "De
 
 El contenido adulto viene oculto por defecto. Las webs para adultos no aparecen, las búsquedas solo dan cosas para todos los públicos y los cómics para adultos que ya tengas también se esconden (la cola de descargas incluida).
 
-Para mostrarlo, mantén pulsado el logo en la pantalla de inicio. El logo se pone colorado y abajo del todo sale un aviso mientras el contenido adulto está visible. Mantén pulsado el logo otra vez para ocultarlo.
+Para mostrarlo, mantén pulsado el logo en la pantalla de inicio. El logo se pone colorado y arriba, junto a la X, sale una franja negra mientras el contenido adulto está visible. Mantén pulsado el logo otra vez para ocultarlo.
 
 Si no quieres que nadie más lo active, ponle un PIN en "Settings" > "Parental controls PIN". A partir de ahí, al mantener pulsado el logo te pide el PIN antes, y todo se vuelve a ocultar cuando cierras el plugin o el lector se bloquea.
 

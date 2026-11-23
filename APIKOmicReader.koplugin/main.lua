@@ -110,13 +110,17 @@ local function formatWarning(source, chapter_title, names, count, total)
     local lines = {}
     if chapter_title then table.insert(lines, chapter_title) end
     if count >= total then
-        table.insert(lines, T(_("This chapter's pages are %1 images*."), formats))
+        table.insert(lines, T(_("This chapter is in %1."), formats))
     else
-        table.insert(lines, T(_("%1 of this chapter's %2 pages are %3 images*."), count, total, formats))
+        table.insert(lines, T(_("%1 of this chapter's %2 pages are in %3."), count, total, formats))
+    end
+    table.insert(lines, "")
+    if #names > 1 then
+        table.insert(lines, _("KOReader doesn't support these formats (yet!): try finding another source, or continue and convert it to another type."))
+    else
+        table.insert(lines, _("KOReader doesn't support this format (yet!): try finding another source, or continue and convert it to another type."))
     end
     if source.unsupported_hint then table.insert(lines, source.unsupported_hint) end
-    table.insert(lines, "")
-    table.insert(lines, T(_("* KOReader doesn't support %1 formats (for now...). You can still download it and try to convert it to a supported type."), formats))
     return table.concat(lines, "\n")
 end
 
@@ -496,6 +500,9 @@ end
 --   has_more() -> bool, load_more() -> bool (appends to items)  [optional]
 --   fetch_thumb(item) -> image data | nil                        [optional]
 --   subtitle(item) -> string | nil                               [optional]
+--   badges(item) -> { done, progress, count, stack } | nil       [optional]
+--     drawn on the covers; in the simple list, done adds a ✓ and
+--     stack (a collection) a "/" like KOReader's folders
 --   on_tap(item), on_hold(item)                                  [on_hold optional]
 function ApiKomic:showItems(entry, opts)
     local mode = Settings.get().view_mode
@@ -510,6 +517,7 @@ function ApiKomic:showItems(entry, opts)
             load_more = opts.load_more,
             fetch_thumb = opts.fetch_thumb,
             subtitle = opts.subtitle,
+            badges = opts.badges,
             on_tap = opts.on_tap,
             on_hold = opts.on_hold,
             on_back = #self.nav > 1 and function() self:navBack() end or nil,
@@ -530,8 +538,12 @@ function ApiKomic:showItems(entry, opts)
             table.insert(menu_items, { text = a.long_text or a.text, callback = a.callback })
         end
         for __, item in ipairs(opts.items) do
+            local text = item.title
+            local b = opts.badges and opts.badges(item)
+            if b and b.done then text = "✓ " .. text end
+            if b and b.stack then text = text .. "/" end
             table.insert(menu_items, {
-                text = item.title,
+                text = text,
                 mandatory = opts.subtitle and opts.subtitle(item) or nil,
                 callback = function() opts.on_tap(item) end,
                 hold_callback = opts.on_hold and function() opts.on_hold(item) end or nil,
@@ -1187,17 +1199,28 @@ local function statusText(c)
     return _("Unread")
 end
 
+-- How a library entry is marked on its cover: a ✓ badge when read, a
+-- progress bar when started, a number for titles with several chapters and
+-- a pile of covers for collections.
+local function libraryBadges(item)
+    if item.kind == "collection" then
+        return { stack = true, count = item.count }
+    elseif item.kind == "series" then
+        local g = item.group
+        if g.read == g.total then return { done = true, count = g.total } end
+        local started = g.read > 0 or g.reading > 0
+        return { count = g.total, progress = started and g.read / g.total or nil }
+    end
+    if item.status == "read" then return { done = true } end
+    if item.status == "reading" then return { progress = item.percent or 0 } end
+    return nil
+end
+
 -- A group as shown in the library: a lone chapter is that comic itself.
 local function groupItem(g)
     if #g.comics == 1 then
         local c = g.comics[1]
         c.series_name = g.name
-        if c.status == "read" then
-            local copy = {}
-            for k, v in pairs(c) do copy[k] = v end
-            copy.title = "✓ " .. c.title
-            return copy
-        end
         return c
     end
     return {
@@ -1205,7 +1228,7 @@ local function groupItem(g)
         key = g.key,
         name = g.name,
         group = g,
-        title = (g.read == g.total and "✓ " or "") .. T(_("%1 (%2)"), g.name, g.total),
+        title = g.name,
         path = g.comics[1].path,  -- the cover is the first chapter's first page
         adult = g.adult,
         mtime = g.mtime,
@@ -1274,7 +1297,7 @@ function ApiKomic:showLibrary(entry)
             end
             local col = {
                 kind = "collection", collection = c, key = c.id, name = c.name,
-                title = "[" .. c.name .. "]", count = 0,
+                title = c.name, count = 0,
                 total = 0, unread = 0, reading = 0, read = 0, last_read = 0, mtime = 0,
             }
             for __, g in ipairs(groups) do
@@ -1307,6 +1330,7 @@ function ApiKomic:showLibrary(entry)
         items = items,
         actions = { self:sortAction("library") },
         fetch_thumb = function(item) return item.path and ZipWriter.readFirstEntry(item.path) or nil end,
+        badges = libraryBadges,
         subtitle = function(item)
             if item.kind == "collection" then return T(_("%1 titles"), item.count) end
             if item.kind == "series" then
@@ -1353,8 +1377,7 @@ function ApiKomic:showSeries(entry)
     end
     if not group then return self:navEmpty(_("No chapters left in this title.")) end
     Library.sortChapters(group.comics, Settings.get().chapter_sort)
-    -- Chapter names without the repeated title: "Title - Ch. 5" -> "Ch. 5",
-    -- with a ✓ when read and the percentage when half-read.
+    -- Chapter names without the repeated title: "Title - Ch. 5" -> "Ch. 5".
     local prefix = safeName(group.name) .. " - "
     local items = {}
     for __, c in ipairs(group.comics) do
@@ -1363,11 +1386,6 @@ function ApiKomic:showSeries(entry)
         if c.title:sub(1, #prefix) == prefix and #c.title > #prefix then
             copy.title = c.title:sub(#prefix + 1)
         end
-        if c.status == "read" then
-            copy.title = "✓ " .. copy.title
-        elseif c.status == "reading" then
-            copy.title = copy.title .. string.format(" (%d%%)", math.floor((c.percent or 0) * 100))
-        end
         table.insert(items, copy)
     end
     self:showItems(entry, {
@@ -1375,6 +1393,7 @@ function ApiKomic:showSeries(entry)
         items = items,
         actions = { self:sortAction("chapters") },
         fetch_thumb = function(item) return ZipWriter.readFirstEntry(item.path) end,
+        badges = libraryBadges,
         subtitle = function(item) return statusText(item) .. " · " .. os.date("%Y-%m-%d %H:%M", item.mtime) end,
         on_tap = function(item) self:openComic(item.path) end,
         on_hold = function(item) self:comicActions(source, item, true) end,
@@ -1484,7 +1503,7 @@ function ApiKomic:comicActions(source, item, in_library, collection_id)
             text = _("KOReader collections…"),
             callback = function()
                 UIManager:close(dialog)
-                self:pickKoCollection((item.title:gsub("^✓ ", "")), { item.path }, name)
+                self:pickKoCollection(item.title, { item.path }, name)
             end,
         }})
         if collection_id then

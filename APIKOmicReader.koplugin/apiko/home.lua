@@ -15,7 +15,6 @@ local IconButton = require("ui/widget/iconbutton")
 local ImageWidget = require("ui/widget/imagewidget")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local LeftContainer = require("ui/widget/container/leftcontainer")
-local RightContainer = require("ui/widget/container/rightcontainer")
 local Size = require("ui/size")
 local TextWidget = require("ui/widget/textwidget")
 local UIManager = require("ui/uimanager")
@@ -128,14 +127,17 @@ function Home:build()
         callback = function() self:onClose() end,
         show_parent = self,
     }
-    local top
+    -- Top row: queue button (when there are downloads waiting) on the left,
+    -- the adult-content banner filling the middle while it's shown, and the
+    -- close button on the right.
+    local queue_button
     if (self.queue_count or 0) > 0 and self.on_queue then
         local queue_text = TextWidget:new{
             text = T(_("Queue: %1"), self.queue_count),
             face = Font:getFace("cfont", 18),
         }
         local queue_h = queue_text:getSize().h + 2 * Size.padding.default
-        local queue_button = Tappable:new{
+        queue_button = Tappable:new{
             on_tap = self.on_queue,
             FrameContainer:new{
                 radius = math.floor(queue_h / 2),
@@ -146,21 +148,41 @@ function Home:build()
                 queue_text,
             },
         }
-        local spacer = math.max(0, w - 2 * pad - queue_button:getSize().w - close:getSize().w)
-        top = HorizontalGroup:new{
-            align = "center",
-            HorizontalSpan:new{ width = pad },
-            queue_button,
-            HorizontalSpan:new{ width = spacer },
-            close,
-            HorizontalSpan:new{ width = pad },
-        }
-    else
-        top = RightContainer:new{
-            dimen = Geom:new{ w = w, h = close:getSize().h },
-            HorizontalGroup:new{ close, HorizontalSpan:new{ width = pad } },
-        }
     end
+    local close_w, close_h = close:getSize().w, close:getSize().h
+    local left = pad + (queue_button and queue_button:getSize().w + gap or 0)
+    local top = HorizontalGroup:new{ align = "center", HorizontalSpan:new{ width = pad } }
+    if queue_button then
+        table.insert(top, queue_button)
+        table.insert(top, HorizontalSpan:new{ width = gap })
+    end
+    if self.adult_shown then
+        local banner_w = math.max(0, w - left - gap - close_w - pad)
+        local banner_h = math.max(close_h - 2 * Size.padding.small, Screen:scaleBySize(28))
+        table.insert(top, FrameContainer:new{
+            width = banner_w,
+            height = banner_h,
+            radius = math.floor(banner_h / 2),
+            bordersize = 0,
+            padding = 0,
+            background = Blitbuffer.COLOR_BLACK,
+            CenterContainer:new{
+                dimen = Geom:new{ w = banner_w, h = banner_h },
+                TextWidget:new{
+                    text = _("18+ shown · hold the logo to hide"),
+                    face = Font:getFace("cfont", 15),
+                    bold = true,
+                    fgcolor = Blitbuffer.COLOR_WHITE,
+                    max_width = banner_w - 2 * pad,
+                },
+            },
+        })
+        table.insert(top, HorizontalSpan:new{ width = gap })
+    else
+        table.insert(top, HorizontalSpan:new{ width = math.max(0, w - left - close_w - pad) })
+    end
+    table.insert(top, close)
+    table.insert(top, HorizontalSpan:new{ width = pad })
 
     -- Logo and name.
     local logo_h = math.floor(h * (landscape and 0.17 or 0.15))
@@ -230,30 +252,10 @@ function Home:build()
         },
     }
 
-    -- Warning at the bottom while adult content is shown.
-    local warning
-    if self.adult_shown then
-        warning = FrameContainer:new{
-            bordersize = border,
-            radius = Size.radius.window,
-            padding = Size.padding.default,
-            padding_left = pad,
-            padding_right = pad,
-            TextWidget:new{
-                text = _("Adult content is visible. Long-press the logo to hide it."),
-                face = Font:getFace("cfont", 16),
-                bold = true,
-                max_width = content_w - 2 * pad - 2 * border,
-            },
-        }
-    else
-        warning = VerticalSpan:new{ width = 0 }
-    end
-
     -- Room left for the tiles, after everything else and the spacing.
-    local spaces = 7
+    local spaces = 6
     local fixed = top:getSize().h + logo:getSize().h + title:getSize().h + chip:getSize().h
-        + bar_h + warning:getSize().h + spaces * gap
+        + bar_h + spaces * gap
     local tiles = self.tiles or {}
     local cols = landscape and math.min(#tiles, 6) or 3
     if cols < 1 then cols = 1 end
@@ -301,7 +303,6 @@ function Home:build()
             space(math.floor(leftover * 0.2)),
             grid,
             space(math.floor(leftover * 0.3)),
-            warning,
         },
     }
 end
